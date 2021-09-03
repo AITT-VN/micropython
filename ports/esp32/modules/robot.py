@@ -7,8 +7,8 @@ from utility import *
 from motor import motor
 from servo import servo
 from speaker import *
-# from ultrasonic import *
-# from line_array import line_array
+from ultrasonic import *
+from line_array import line_array
 from motion import motion
 
 class Robot:

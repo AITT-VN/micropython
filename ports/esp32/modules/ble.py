@@ -6,8 +6,8 @@ from setting import *
 from servo import servo
 from speaker import speaker
 from led import led_onboard
-# from ultrasonic import ultrasonic
-# from line_array import line_array
+from ultrasonic import ultrasonic
+from line_array import line_array
 from motor import motor
 
 from robot import robot
