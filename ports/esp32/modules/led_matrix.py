@@ -1,7 +1,7 @@
 import time
 import tm1640
 import machine
-from setting import *
+from setting import PORTS_DIGITAL
 from utility import *
 
 class Image:

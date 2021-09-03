@@ -28,6 +28,7 @@ from micropython import const
 from machine import Pin
 from time import sleep_us, sleep_ms
 from setting import *
+from utility import *
 
 TM1637_CMD1 = const(64)  # 0x40 data command
 TM1637_CMD2 = const(192) # 0xC0 address command
@@ -45,6 +46,7 @@ class TM1637(object):
         self._port = None
 
         if not 0 <= brightness <= 7:
+            say("Brightness out of range")
             raise ValueError("Brightness out of range")
         self._brightness = brightness
 

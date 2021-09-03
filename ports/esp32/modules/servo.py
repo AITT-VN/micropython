@@ -1,8 +1,5 @@
 import pca9685
-import math
-import machine
 import time
-from machine import Pin
 
 from utility import *
 
@@ -60,7 +57,6 @@ class Servos:
       duty = min(self.max_duty, max(self.min_duty, int(duty)))
       self.pca9685.duty(index, duty)
       self.pos[index] = new_pos
-      # printp(new_pos)
       time.sleep_ms(sleep)
 
   def release(self, index):

@@ -67,6 +67,7 @@ class IR_RX():
         self._pin = pin
         self._callback = callback
         self._error_callback = error_callback
+        self._tim = None
         self.verbose = False
 
         self._extended = False
@@ -87,7 +88,7 @@ class IR_RX():
         # On overrun ignore pulses until software timer times out
         if self.edge <= _EDGES:  # Allow 1 extra pulse to record overrun
             if not self.edge:  # First edge received
-                self.tim.init(period=_TBLOCK, mode=Timer.ONE_SHOT, callback=self.cb)
+                self._tim.init(period=_TBLOCK, mode=Timer.ONE_SHOT, callback=self.cb)
             self._times[self.edge] = t
             self.edge += 1
 
@@ -194,11 +195,13 @@ class IR_RX():
         self._key_pressed = None
 
     def start(self):
+        self.stop()
         self._pin.irq(handler = self._cb_pin, trigger = (Pin.IRQ_FALLING | Pin.IRQ_RISING))
-        self.tim = Timer(3)  # Sofware timer
+        self._tim = Timer(3)  # Sofware timer
     
     def stop(self):
         self._pin.irq(handler = None)
-        self.tim.deinit()
+        if self._tim:
+            self._tim.deinit()
 
 ir_rx = IR_RX(Pin(15, Pin.IN))

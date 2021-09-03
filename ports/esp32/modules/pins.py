@@ -1,4 +1,3 @@
-from utime import sleep_ms as sleep
 from machine import Pin, ADC, DAC, TouchPad, PWM, time_pulse_us
 from utility import *
 
@@ -81,65 +80,3 @@ pin51 = Pins(32)
 pin52 = Pins(33)
 pin61 = Pins(25, 34)
 pin62 = Pins(26, 35)
-
-def unit_test():
-    printp('The unit test code is as follows')
-    printp('\n\
-        pin13 = Pins(18)\n\
-        pin1 = Pins(32)\n\
-        pin21=Pins(34)\n\
-        pin10=Pins(26)\n\
-        pin5=Pins(35)\n\
-        while True:\n\
-        pin13.write_digital(1)\n\
-        sleep(20)\n\
-        pin13.write_digital(0)\n\
-        sleep(480)\n\
-        printp(\'Please press P1\')\n\
-        sleep(1000)\n\
-        printp(\'pin1(P1).is_touched()\', pin1.is_touched())\n\
-        sleep(1000)\n\
-        printp(\'Please press A\')\n\
-        sleep(1000)\n\
-        printp(\'pin5(P5).read_digital()\', pin5.read_digital())\n\
-        printp(\'the ADC converted values is \', pin21.read_analog(ADC.ATTN_11DB))\n\
-        sleep(50)\n\
-        for val in range(150,255,1):\n\
-            pin10.write_analog(val)\n\
-            sleep(10)\n\
-        for val in range(255,150,-1):\n\
-            pin10.write_analog(val)\n\
-            sleep(10)\n\
-    ')
-    pin13 = Pins(18)
-    pin1 = Pins(32)
-    pin4=Pins(39)
-    pin10=Pins(26)
-    pin11=Pins(27)
-    pin5=Pins(35)
-    while True:
-        pin13.write_digital(1)
-        sleep(500)
-        pin13.write_digital(0)
-        sleep(500)
-        printp('Please press P1')
-        sleep(1000)
-        printp('pin1(P1).is_touched()', pin1.is_touched())
-        sleep(1000)
-        printp('Please press A')
-        sleep(1000)
-        printp('pin5(P5).read_digital()', pin5.read_digital())
-        printp('the ADC converted values is ', pin4.read_analog())
-        sleep(50)
-        for val in range(0,255,1):
-            pin10.write_dac(val)
-            pin11.write_analog(val)
-            sleep(10)
-        for val in range(255,0,-1):
-            pin10.write_dac(val)
-            pin11.write_analog(val)
-            sleep(10)
-
-
-if __name__ == '__main__':
-    unit_test()

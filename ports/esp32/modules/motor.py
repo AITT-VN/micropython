@@ -2,9 +2,6 @@ import time
 import pca9685
 from utility import *
 
-_DC_MOTORS = ((10, 12, 11), (15, 13, 14))
-MAX_PWM_VALUE = const(3500) # use to limit robot speed, pca9685 max pwm is 4095
-
 class DCMotors:
     def __init__(self, i2c, address=0x40, freq=50):
         self.pca9685 = pca9685.PCA9685(i2c, address)
@@ -22,12 +19,19 @@ class DCMotors:
             self.pca9685.pwm(pin, 0, 0)
 
     def speed(self, index, value=None):
-        pwm, in2, in1 = _DC_MOTORS[index]
+        #_DC_MOTORS = ((10, 12, 11), (15, 13, 14))
+        if index == 0:
+            pwm, in2, in1 = (10, 12, 11)
+        else:
+            pwm, in2, in1 = (15, 13, 14)
+
         if value is None:
             value = self.pca9685.duty(pwm)
             if self._pin(in2) and not self._pin(in1):
                 value = -value
             return value
+            
+        value = max(min(100, value),-100)
 
         if index == 0 :
           self.m1_speed = value
@@ -46,6 +50,6 @@ class DCMotors:
             # Release
             self._pin(in1, False)
             self._pin(in2, False)
-        self.pca9685.duty(pwm, int(translate(abs(value), 0, 100, 0, MAX_PWM_VALUE)))
+        self.pca9685.duty(pwm, int(translate(abs(value), 0, 100, 0, 3500))) # use 3500 to limit robot speed (save battery) while pca9685 max pwm is 4095
 
 motor = DCMotors(i2c)

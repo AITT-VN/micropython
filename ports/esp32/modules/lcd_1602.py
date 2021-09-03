@@ -2,6 +2,7 @@ import machine
 from time import sleep_ms, sleep_us
 
 from setting import *
+from utility import *
 
 """Implements a HD44780 character LCD connected via PCF8574 on I2C. 
    This was tested with: https://www.wemos.cc/product/d1-mini.html""" 
@@ -237,7 +238,8 @@ class LCD1602(LcdApi):
         try:
             super().init_display()
         except:
-            print('LCD 1602 not found')
+            say('LCD 1602 not found')
+            raise Exception('LCD 1602 not found')
 
     def hal_write_init_nibble(self, nibble): 
         """Writes an initialization nibble to the LCD. 

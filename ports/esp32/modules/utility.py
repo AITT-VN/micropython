@@ -4,19 +4,8 @@ from setting import *
 
 i2c = machine.SoftI2C(scl=machine.Pin(22), sda=machine.Pin(21))
 
-def printp(value1, value2 = None, value3 = None):
-    if (DEBUG_MODE == False) :
-        return
-        
-    if (value2 == None):
-        print(value1)
-    elif (value3 == None):
-        print(value1, value2)
-    else :
-        print(value1, value2, value3)
-
 def say(message) :
-    message = ROBOT_SIGN_MESSAGE + str(message) + ROBOT_SIGN_MESSAGE
+    message = ROBOT_MESSAGE_SIGN + str(message) + ROBOT_MESSAGE_SIGN
     print(message)
 
 

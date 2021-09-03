@@ -6,21 +6,23 @@ from setting import *
 from servo import servo
 from speaker import speaker
 from led import led_onboard
-from ultrasonic import ultrasonic
-from line_array import line_array
+# from ultrasonic import ultrasonic
+# from line_array import line_array
 from motor import motor
 
 from robot import robot
 
-import blerepl
-import bleuart
+from bleuart import BLEUART
+from blerepl import BLEREPL
+
+from ble_controller import ble_controller
 
 ble_o = bluetooth.BLE()
 
 class BLE:
     def __init__(self):
-        self._ble_uart = bleuart.BLEUART(ble_o)
-        self._ble_repl = blerepl.BLEREPL(self)
+        self._ble_uart = BLEUART(ble_o)
+        self._ble_repl = BLEREPL(self)
         os.dupterm(self._ble_repl)
         self._rx_repl_buffer = bytearray()
         self._rx_usr_cmd_buffer = bytearray()
@@ -34,7 +36,12 @@ class BLE:
 
     # start bluetooth and advertise itself in peripheral mode
     def start(self, name=PRODUCT_NAME):
+        print(name)
         self._ble_uart.start(name)
+
+    # stop bluetooth
+    def stop(self):
+        self._ble_uart.stop()
 
     def _message_handler(self, data):
         if len(data) == 0:
@@ -50,6 +57,11 @@ class BLE:
                 self._process_sys_cmd(data[1:])
             elif data[0] == CMD_PROG_START_PREFIX:
                 # start flag of programming mode sent from app
+                # when app sends new code to execute, app will send Ctrl + C to stop running code
+                # and this may cause exception and deactivate dupterm
+                # so we reset repl every time receiving new code to fix the issue
+                self._ble_repl.reset_repl()
+
                 self._programming_mode = True
                 self._programming_mode_start_time = time.ticks_ms()
                 if len(data) > 1:
@@ -58,6 +70,9 @@ class BLE:
             elif data[0] == CMD_PROG_END_PREFIX:
                 # end flag of programming mode sent from app
                 self._programming_mode = False
+            elif data[0] == CMD_REMOTE_CONTROLLER_PREFIX:
+                # message sent by wireless remote controller
+                ble_controller.decode(data)
             else:
                 if self._programming_mode:
                     if time.ticks_ms() - self._programming_mode_start_time < PROGRAMMING_MODE_TIMEOUT:
@@ -75,8 +90,8 @@ class BLE:
             print(e)
 
     def _process_sys_cmd(self, cmd):
-        if cmd[0] == CMD_VERSION:
-            self.send_periph(VERSION)
+        if cmd[0] == CMD_FIRMWARE_INFO:
+            self.send_periph(ROBOT_DATA_RECV_SIGN + 'prd/' + PRODUCT_TYPE + '/' + VERSION + '/' + ROBOT_DATA_RECV_SIGN)
 
         elif cmd[0] == CMD_STOP:
             robot.stop()

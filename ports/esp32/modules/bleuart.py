@@ -1,7 +1,7 @@
 from setting import *
 import bluetooth
 from micropython import const
-from ble_advertising import advertising_payload, decode_services, decode_name
+from ble_advertising import advertising_payload, decode_name
 
 from global_objects import led_onboard
 
@@ -109,6 +109,9 @@ class BLEUART:
             self._name = name
         self._payload = advertising_payload(name=self._name, appearance=_ADV_APPEARANCE_GENERIC_COMPUTER)
         self._ble.gap_advertise(interval_us, adv_data=self._payload)
+
+    def stop(self):
+        self._ble.active(False)
 
     def irq(self, handler):
         self._handler = handler

@@ -1,14 +1,13 @@
 import machine
 import binascii
 from micropython import const
+import ujson
 
 CHIP_ID = binascii.hexlify(machine.unique_id()).decode('ascii')
-PRODUCT_NAME = 'xbot-' + CHIP_ID[-4:]
-
-VERSION = '0.9'
-
-#DEBUG_MODE = True
-DEBUG_MODE = False
+PREFIX_NAME = 'ohstem-'
+PRODUCT_TYPE = 'xbot'
+PRODUCT_NAME = PREFIX_NAME + PRODUCT_TYPE + '-' + CHIP_ID[-4:]
+VERSION = '0.8.5'
 
 PORTS_DIGITAL = [(18, 19), (4, 5), (13, 14), (16, 17), (32, 33), (25, 26)]
 PORTS_ADC = [(-1, -1), (-1, -1), (-1, -1), (39, 36), (32, 33), (34, 35)]
@@ -21,8 +20,10 @@ CMD_SYS_PREFIX = const(0x11)
 CMD_PROG_START_PREFIX = const(0x12)
 CMD_PROG_END_PREFIX = const(0x13)
 
+CMD_REMOTE_CONTROLLER_PREFIX = const(0x14)
+
 # version command 
-CMD_VERSION = const(0x00)
+CMD_FIRMWARE_INFO = const(0x00)
 
 # running commands
 CMD_STOP = const(0x01)
@@ -52,13 +53,13 @@ CMD_ULTRASONIC_SENSOR = const(0x60)
 CMD_LINE_SENSOR = const(0x66)
 
 
-LED_COLOR_IDLE = (255, 0, 0)
-LED_COLOR_BT_CONNECTED = (0, 0, 255)
+LED_COLOR_IDLE = (128, 0, 0)
+LED_COLOR_BT_CONNECTED = (0, 128, 0)
 
-LED_COLOR_DO_NOTHING = (255, 0, 0)
-LED_COLOR_AVOID_OBS = (0, 255, 0)
-LED_COLOR_FOLLOW = (0, 0, 255)
-LED_COLOR_LINE_FINDER = (255, 255, 255)
+LED_COLOR_DO_NOTHING = (128, 0, 0)
+LED_COLOR_AVOID_OBS = (0, 0, 128)
+LED_COLOR_FOLLOW = (128, 0, 128)
+LED_COLOR_LINE_FINDER = (128, 128, 128)
 
 ROBOT_MODE_DO_NOTHING = const(0)
 ROBOT_MODE_MOTOR_STOP = const(1)
@@ -67,4 +68,32 @@ ROBOT_MODE_AVOID_OBS = const(3)
 ROBOT_MODE_FOLLOW = const(4)
 ROBOT_MODE_LINE_FINDER = const(5)
 
-ROBOT_SIGN_MESSAGE = '\x09'
+ROBOT_MESSAGE_SIGN = '\x09' # data sign for app shows message to user
+ROBOT_DATA_RECV_SIGN = '\x06' # data sign for app receives infor from device (only using for system)
+
+config = {}
+
+# load config file
+try:
+    f = open('config.json', 'r')
+    config = ujson.loads(f.read())
+    f.close()
+except Exception:
+    print('Failed to load config file')
+
+# print(config)
+# if error found or missing information => start config mode
+if config.get('device_name', False):
+    print('Finish loading config file')
+    PRODUCT_NAME = PREFIX_NAME + config['device_name']
+    # chars limit for start ble name is 22
+    PRODUCT_NAME = PRODUCT_NAME[0:22]
+
+def save_config():
+    global config
+    print('Save config file...')
+    print(config)
+    f = open('config.json', 'w')
+    f.write(ujson.dumps(config))
+    f.close()
+    print('..done')

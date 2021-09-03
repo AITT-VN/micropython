@@ -3,8 +3,7 @@ from machine import Pin
 
 from setting import *
 
-MAX_DISTANCE_CM = const(200) #cm
-MAX_DISTANCE_MM = const(2000) #mm
+_MAX_DISTANCE_CM = const(200) #cm
 
 class UltraSonic:
     """
@@ -24,6 +23,8 @@ class UltraSonic:
         """
         self.echo_timeout_us = echo_timeout_us
         self.reset_port(port)
+        self._ars = []
+        self._ats = []
 
     def reset_port(self, port):
         self.port = port
@@ -58,26 +59,9 @@ class UltraSonic:
             raise ex
 
     def distance_mm(self, port=1):
-        """
-        Get the distance in milimeters without floating point operations.
-        """
-        if port != self.port:
-            self.reset_port(port)
+        return self.distance_cm(port)*10
 
-        pulse_time = self._send_pulse_and_wait()
-
-        # To calculate the distance we get the pulse_time and divide it by 2 
-        # (the pulse walk the distance twice) and by 29.1 becasue
-        # the sound speed on air (343.2 m/s), that It's equivalent to
-        # 0.34320 mm/us that is 1mm each 2.91us
-        # pulse_time // 2 // 2.91 -> pulse_time // 5.82 -> pulse_time * 100 // 582 
-        mm = pulse_time * 100 // 582
-        if mm >= 0 and mm < MAX_DISTANCE_MM:
-            return mm
-        else:
-            return MAX_DISTANCE_MM
-
-    def distance_cm(self, port=1):
+    def distance_cm(self, port=1, filter=True):
         """
         Get the distance in centimeters with floating point operations.
         It returns a float
@@ -92,10 +76,49 @@ class UltraSonic:
         # the sound speed on air (343.2 m/s), that It's equivalent to
         # 0.034320 cm/us that is 1cm each 29.1us
         cms = (pulse_time / 2) / 29.1
-        
-        if cms >= 0 and cms < MAX_DISTANCE_CM:
+
+        if cms < 0 or cms > _MAX_DISTANCE_CM:
+            cms = _MAX_DISTANCE_CM
+
+        if not filter:
             return cms
-        else:
-            return MAX_DISTANCE_CM
+        
+        self._ars.append(cms)
+        self._ats.append(time.time_ns())
+        if len(self._ars) > 5:
+            self._ars.pop(0)
+            self._ats.pop(0)
+        while True:
+            if self._ats[len(self._ats) - 1] - self._ats[0] > 5e8:
+                self._ars.pop(0)
+                self._ats.pop(0)
+            else:
+                break
+        if len(self._ars) < 2:
+            time.sleep_ms(30)
+            pulse_time = self._send_pulse_and_wait()
+            cms = (pulse_time / 2) / 29.1
+            if cms < 0 or cms > _MAX_DISTANCE_CM:
+                cms = _MAX_DISTANCE_CM
+            self._ars.append(cms)
+            self._ats.append(time.time_ns())
+        
+        N = len(self._ars)
+        Fi = Fd = [1] * N
+        maxd = vald = 0
+        for i in range(N):
+            for j in range(i):
+                if (self._ars[i] >= self._ars[j]) and (self._ars[i] - self._ars[j]) < 10:
+                    Fi[i] = max(Fi[i], Fi[j] + 1)
+                if (self._ars[i] <= self._ars[j]) and (self._ars[j] - self._ars[i]) < 10:
+                    Fd[i] = max(Fd[i], Fd[j] + 1)
+                if maxd < Fi[i] or maxd < Fd[i]:
+                    maxd = max(Fi[i], Fd[i])
+                    vald = self._ars[i]
+
+        if maxd <= N/2:
+            vald = sum(self._ars) / N
+        
+        return round(vald * 10) / 10
 
 ultrasonic = UltraSonic()

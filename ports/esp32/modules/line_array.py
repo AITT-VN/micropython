@@ -1,7 +1,8 @@
 import machine, time
 import pcf8574
 
-from setting import *
+from setting import PORTS_DIGITAL
+from utility import say
 
 class LineArray:
     def __init__(self, port, address=0x23):
@@ -19,20 +20,21 @@ class LineArray:
             self.i2c_pcf = machine.SoftI2C(scl = scl_pin, sda = sda_pin)
             self.pcf = pcf8574.PCF8574(self.i2c_pcf, self.address)
         except:
-            print('Line finder array not found')
+            self.pcf = None
+            say('Line finder array not found')
     
     def read(self, port, index=None):
+        
         if port != self.port:
             self._reset_port(port)
 
-        '''
-        self.pcf.pin(0) = 0 white line
-        self.pcf.pin(0) = 1 black line
+        # 0 white, 1 black
+        if self.pcf == None:
+            return 0
 
-        '''
         if index == None:
             return (self.pcf.pin(0), self.pcf.pin(1), self.pcf.pin(2), self.pcf.pin(3))
-        else:
-            return self.pcf.pin(index)
+
+        return self.pcf.pin(index)
 
 line_array = LineArray(0)

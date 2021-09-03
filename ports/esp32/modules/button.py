@@ -1,7 +1,6 @@
 from time import sleep_ms, ticks_ms
 from machine import Pin
-
-USER_BTN_PIN = const(23)
+from micropython import const
 
 class Button:
 
@@ -33,4 +32,4 @@ class Button:
         else:
             return False
 
-btn_onboard = Button(USER_BTN_PIN)
+btn_onboard = Button(23) # onboard button connected to pin 23 

@@ -23,6 +23,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
+from utility import *
 
 class PCF8574:
     def __init__(self, i2c, address=0x20):
@@ -30,6 +31,7 @@ class PCF8574:
         self._address = address
         self._port = bytearray(1)
         if i2c.scan().count(address) == 0:
+            say('PCF8574 not found at I2C address {:#x}'.format(address))
             raise OSError('PCF8574 not found at I2C address {:#x}'.format(address))
 
     @property

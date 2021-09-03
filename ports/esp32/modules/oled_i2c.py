@@ -3,6 +3,7 @@ import framebuf
 from micropython import const
 
 from setting import *
+from utility import *
 
 currentBoard = "esp32"
 
@@ -89,7 +90,8 @@ class SSD1306:
             self.write_cmd(self.pages - 1)
             self.write_data(self.buffer)
         except:
-            print('Oled not found')
+            say('Oled not found')
+            raise Exception('Oled not found')
 
     def fill(self, col):
         self.framebuf.fill(col)
@@ -134,7 +136,8 @@ class OledI2C(SSD1306):
         try:
             super().init_display()
         except:
-            print('Oled not found')
+            say('Oled not found')
+            raise Exception('Oled not found')
     
     def write_cmd(self, cmd):
         self.temp[0] = 0x80 # Co=1, D/C#=0
