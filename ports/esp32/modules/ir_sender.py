@@ -35,8 +35,8 @@ class IR_TX:
         raise ValueError('Cannot set active low on ESP32')
 
     def __init__(self, pin, verbose=False):
-        self._rmt = RMT(0, pin=pin, clock_div=80, carrier_freq=38000,
-                        carrier_duty_percent=33)  # 1μs resolution
+        self._rmt = RMT(0, pin=pin, clock_div=80, tx_carrier=(38000, 33, 1))
+        # self._rmt = RMT(0, pin=pin, clock_div=80, carrier_freq=38000, carrier_duty_percent=33)  # 1μs resolution
         
         self._tcb = self._cb  # Pre-allocate
         self._arr = array('H', 0 for _ in range(_ASIZE))  # on/off times (μs)
@@ -71,7 +71,7 @@ class IR_TX:
         self.carrier = False
         self.tx(data, addr)  # Subclass populates ._arr
         # Initiate transmission
-        self._rmt.write_pulses(tuple(self._mva[0 : self.aptr]), start = 1)
+        self._rmt.write_pulses(tuple(self._mva[0 : self.aptr]), 1)
         if self.timeit:
             dt = ticks_diff(ticks_us(), t)
             print('Time = {}μs'.format(dt))

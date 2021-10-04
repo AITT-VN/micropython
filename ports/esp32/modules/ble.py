@@ -26,6 +26,9 @@ class BLE:
         os.dupterm(self._ble_repl)
         self._rx_repl_buffer = bytearray()
         self._rx_usr_cmd_buffer = bytearray()
+
+        # used to register callback for system command handling 
+        self._on_received_sys_cmd = None
         
         # flag to know if device is in programming mode
         self._programming_mode = False
@@ -36,7 +39,6 @@ class BLE:
 
     # start bluetooth and advertise itself in peripheral mode
     def start(self, name=PRODUCT_NAME):
-        print(name)
         self._ble_uart.start(name)
 
     # stop bluetooth
@@ -179,9 +181,10 @@ class BLE:
             speaker.play(['C5:2'])
         
         elif cmd[0] == CMD_SPEAKER_TONE:
-            freq = cmd[1]
-            duration = cmd[2]
-            speaker.pitch(freq, duration)
+            if cmd[1] == 1:
+                speaker.play_tone(cmd[2:])
+            else:
+                speaker.stop_duty()
 
         elif cmd[0] == CMD_LED_COLOR:
             which_led = cmd[1]
@@ -198,7 +201,10 @@ class BLE:
             port = cmd[1]
             self.send_periph(line_array.read(port))
         else:
-            pass # ignore undefined command
+            if self._on_received_sys_cmd != None:
+                self._on_received_sys_cmd(cmd)
+            else:
+                pass # ignore undefined command
 
     def has_repl_data(self): # only used by blerepl
         return len(self._rx_repl_buffer)
@@ -210,6 +216,9 @@ class BLE:
         self._rx_repl_buffer = self._rx_repl_buffer[sz:]
         return result
     
+    def on_received_sys_cmd(self, callback):
+        self._on_received_sys_cmd = callback
+
     def has_msg(self): # for checking user defined message
         return len(self._rx_usr_cmd_buffer)
 

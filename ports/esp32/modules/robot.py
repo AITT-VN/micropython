@@ -84,7 +84,7 @@ class Robot:
                 self.stop()
             
             time.sleep_ms(50)
-            if wait == False:
+            if not wait:
                 return            
 
     def run_mode_linefinder(self, wait=True, speed=40):
@@ -102,14 +102,13 @@ class Robot:
             now = line_array.read(0)
             
             if now == 0 or now == (0, 0, 0, 0): #no line found
-                if self.m_dir == -1: 
+                if self.m_dir == -1:
                     self.stop()
                 else:
                     if self.m_dir < 4:                            
                         self.m_dir += 4 #change to go backward or stronger turn
                         self.set_wheel_speed( speed * speed_factors[self.m_dir][self.i_lr], speed * speed_factors[self.m_dir][1-self.i_lr] )
                         self.t_finding_point = time.time_ns()
-                        speaker.play(['C4:0.5'], False)
                     else:
                         if time.time_ns() - self.t_finding_point > 3e9: #go backward and strong turn still not found then stop after 3s
                             self.m_dir = -1
@@ -128,6 +127,18 @@ class Robot:
                     elif (now[2], now[3]) == (1, 1): 
                         self.m_dir = 2 #right normal turn
                         self.i_lr = 1
+                    elif now == (1, 0, 1, 0): 
+                        if self.m_dir != -1:
+                            self.m_dir = 1
+                            self.i_lr = 0
+                    elif now == (0, 1, 0, 1): 
+                        if self.m_dir != -1:
+                            self.m_dir = 1
+                            self.i_lr = 1
+                    elif now == (1, 0, 0, 1): 
+                        if self.m_dir != -1:
+                            self.m_dir = 0
+                            self.i_lr = 0
                     elif now[1] == 1: 
                         self.m_dir = 1 #left light turn
                         self.i_lr = 0
@@ -143,7 +154,7 @@ class Robot:
 
                     self.set_wheel_speed( speed * speed_factors[self.m_dir][self.i_lr], speed * speed_factors[self.m_dir][1-self.i_lr] )
 
-            if wait == False:
+            if not wait:
                 return
 
     def run_mode_rotation(self):
@@ -338,8 +349,7 @@ class Robot:
             gc.collect()
 
     def __send_infor(self, data):
-        data = ROBOT_DATA_RECV_SIGN + str(data) + ROBOT_DATA_RECV_SIGN
-        print(data)
+        print(ROBOT_DATA_RECV_SIGN + 'data/' + str(data) + '/' + ROBOT_DATA_RECV_SIGN)
 
     #------------------------------ROBOT PUBLIC DRIVING METHODS--------------------------#
 

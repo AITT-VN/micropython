@@ -20,4 +20,4 @@ from ble_controller import ble_controller
 
 # wireless libs
 from ble import ble_o, ble
-from wifi import *
+#from wifi import *

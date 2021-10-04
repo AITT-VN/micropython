@@ -7,7 +7,7 @@ CHIP_ID = binascii.hexlify(machine.unique_id()).decode('ascii')
 PREFIX_NAME = 'ohstem-'
 PRODUCT_TYPE = 'xbot'
 PRODUCT_NAME = PREFIX_NAME + PRODUCT_TYPE + '-' + CHIP_ID[-4:]
-VERSION = '0.8.5'
+VERSION = '1.0'
 
 PORTS_DIGITAL = [(18, 19), (4, 5), (13, 14), (16, 17), (32, 33), (25, 26)]
 PORTS_ADC = [(-1, -1), (-1, -1), (-1, -1), (39, 36), (32, 33), (34, 35)]
@@ -68,32 +68,38 @@ ROBOT_MODE_AVOID_OBS = const(3)
 ROBOT_MODE_FOLLOW = const(4)
 ROBOT_MODE_LINE_FINDER = const(5)
 
-ROBOT_MESSAGE_SIGN = '\x09' # data sign for app shows message to user
+KEY_NONE = const(0)
+KEY_UP = const(1)
+KEY_DOWN = const(2)
+KEY_LEFT = const(3)
+KEY_RIGHT = const(4)
+KEY_JOYSTICK = const(9)
+
 ROBOT_DATA_RECV_SIGN = '\x06' # data sign for app receives infor from device (only using for system)
 
-config = {}
+device_config = {}
 
 # load config file
 try:
     f = open('config.json', 'r')
-    config = ujson.loads(f.read())
+    device_config = ujson.loads(f.read())
     f.close()
 except Exception:
     print('Failed to load config file')
 
 # print(config)
 # if error found or missing information => start config mode
-if config.get('device_name', False):
+if device_config.get('device_name', False):
     print('Finish loading config file')
-    PRODUCT_NAME = PREFIX_NAME + config['device_name']
+    PRODUCT_NAME = PREFIX_NAME + device_config['device_name']
     # chars limit for start ble name is 22
     PRODUCT_NAME = PRODUCT_NAME[0:22]
 
 def save_config():
-    global config
+    global device_config
     print('Save config file...')
-    print(config)
+    print(device_config)
     f = open('config.json', 'w')
-    f.write(ujson.dumps(config))
+    f.write(ujson.dumps(device_config))
     f.close()
     print('..done')

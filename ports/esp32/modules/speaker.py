@@ -99,6 +99,7 @@ class Speaker:
         self.reset()
         self.playing = False
         self.stopped = True
+        self.pwm = None
 
     def set_tempo(self, ticks=4, bpm=60):
         self.duration = ticks
@@ -156,10 +157,35 @@ class Speaker:
         if pos != -1:
             self.set_duration(float(tone[(pos + 1):]))
             tone = tone[:pos]
+
+    def _start_pwm(self, pin=27):
+        if self.pwm == None:
+            self.pwm = PWM(Pin(pin))
+
+    def _stop_pwm(self):
+        if self.pwm != None:
+            self.pwm.duty(0)
+            self.pwm.deinit()
+            self.pwm = None
+
+    def play_tone(self, tone, pin=27):
+        self.stop()
+        str = ''
+        for i in tone:
+            str += chr(i)        
+        self._start_pwm(pin)
+        midi = self.midi(str)
+        self.pwm.freq(midi[0])  # set frequency
+        self.pwm.duty(midi[1])  # set duty cycle
+
+    def stop_duty(self):
+        if self.pwm:
+            self.pwm.duty(0)
+
     def _play(self, tune, loop=False, pin=27, duration=None):
         if not self.stop():
             return      
-        pwm = PWM(Pin(pin))
+        self._start_pwm(pin)
         try:
             if duration is not None:
                 self.set_duration(duration)
@@ -175,8 +201,8 @@ class Speaker:
                         if tone[0] not in self._letters:
                             continue                        
                         midi = self.midi(tone)
-                        pwm.freq(midi[0])  # set frequency
-                        pwm.duty(midi[1])  # set duty cycle
+                        self.pwm.freq(midi[0])  # set frequency
+                        self.pwm.duty(midi[1])  # set duty cycle
                         sleep_ms(midi[1])
             else:
                 for tone in tune:
@@ -186,14 +212,13 @@ class Speaker:
                     if tone[0] not in self._letters:
                         continue                    
                     midi = self.midi(tone)
-                    pwm.freq(midi[0])  # set frequency
-                    pwm.duty(midi[1])  # set duty cycle
+                    self.pwm.freq(midi[0])  # set frequency
+                    self.pwm.duty(midi[1])  # set duty cycle
                     sleep_ms(midi[1])
         except Exception as e:
             print(e)
         finally:
-            pwm.duty(0)
-            pwm.deinit()
+            self._stop_pwm()
             self.playing = False
             self.stopped = True    
     def play(self, tune, wait=False, loop=False, pin=27, duration=None):
@@ -204,12 +229,12 @@ class Speaker:
       
     def pitch(self, freq, tim, pin=27):
         try:
-            pwm = PWM(Pin(pin))
-            pwm.freq(freq)  # set frequency
-            pwm.duty(tim)  # set duty cycle
+            self._start_pwm(pin)
+            self.pwm.freq(freq)  # set frequency
+            self.pwm.duty(tim)  # set duty cycle
             sleep_ms(tim)
         finally:
-            pwm.deinit()
+            self._stop_pwm()
 
     def tone(self):
         self.play(['C5:2'])

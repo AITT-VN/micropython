@@ -4,7 +4,7 @@ import time
 from utility import *
 
 class Servos:
-  def __init__(self, i2c, address=0x40, freq=50, min_us=600, max_us=2400, default_degrees=180):
+  def __init__(self, i2c, address=0x40, freq=50, min_us=400, max_us=2400, default_degrees=180):
     self.period = 1000000 / freq
     self.min_duty = self._us2duty(min_us)
     self.max_duty = self._us2duty(max_us)
@@ -70,7 +70,7 @@ class Servos:
       self.release(index)
       return
 
-    degree = 90 - (speed/100)*80
+    degree = 90 - (speed/100)*90
     self.position(index, degree)
 
 servo = Servos(i2c)

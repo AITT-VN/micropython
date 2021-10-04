@@ -270,7 +270,7 @@ class Motion:
         data = self.__get_value(None, n_samples)
         return (data['GyX'] - self.gyroXoffs, data['GyY'] - self.gyroYoffs, data['GyZ'] - self.gyroZoffs)
 
-    def is_shaked(self, shake_threshold=0.7, avg_count=10, wait_time=0.1):
+    def is_shaked(self, shake_threshold=4.0, avg_count=10, wait_time=0.1):
         try:
             x = y = z = 0
             total = 0.0

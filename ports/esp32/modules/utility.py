@@ -5,9 +5,7 @@ from setting import *
 i2c = machine.SoftI2C(scl=machine.Pin(22), sda=machine.Pin(21))
 
 def say(message) :
-    message = ROBOT_MESSAGE_SIGN + str(message) + ROBOT_MESSAGE_SIGN
-    print(message)
-
+    print(ROBOT_DATA_RECV_SIGN + 'inf/' + str(message) + '/' + ROBOT_DATA_RECV_SIGN)
 
 def hex_to_rgb(value):
     value = value.lstrip('#')
