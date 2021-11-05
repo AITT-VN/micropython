@@ -7,13 +7,13 @@ CHIP_ID = binascii.hexlify(machine.unique_id()).decode('ascii')
 PREFIX_NAME = 'ohstem-'
 PRODUCT_TYPE = 'xbot'
 PRODUCT_NAME = PREFIX_NAME + PRODUCT_TYPE + '-' + CHIP_ID[-4:]
-VERSION = '1.0'
+VERSION = '1.1'
 
 PORTS_DIGITAL = [(18, 19), (4, 5), (13, 14), (16, 17), (32, 33), (25, 26)]
 PORTS_ADC = [(-1, -1), (-1, -1), (-1, -1), (39, 36), (32, 33), (34, 35)]
 
 # timeout for programming mode
-PROGRAMMING_MODE_TIMEOUT = const(10000)
+PROGRAMMING_MODE_TIMEOUT = const(90000)
 
 CMD_CTRL_D = const(0x04)
 CMD_SYS_PREFIX = const(0x11)

@@ -21,9 +21,9 @@ class DCMotors:
     def speed(self, index, value=None):
         #_DC_MOTORS = ((10, 12, 11), (15, 13, 14))
         if index == 0:
-            pwm, in2, in1 = (10, 12, 11)
-        else:
             pwm, in2, in1 = (15, 13, 14)
+        else:
+            pwm, in2, in1 = (10, 12, 11)
 
         if value is None:
             value = self.pca9685.duty(pwm)
