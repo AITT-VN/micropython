@@ -16,7 +16,6 @@ from servo import servo
 from led_matrix import Image, led_matrix
 from motion import motion
 from robot import robot
-from ble_controller import ble_controller
 
 # wireless libs
 from ble import ble_o, ble

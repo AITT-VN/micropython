@@ -4,8 +4,14 @@ from setting import *
 
 i2c = machine.SoftI2C(scl=machine.Pin(22), sda=machine.Pin(21))
 
+__last_say_sent = 0
+
 def say(message) :
+    global __last_say_sent
+    if (time.ticks_ms() - __last_say_sent) < 100: # avoid flooding send, especially via BLE
+        time.sleep_ms(100)
     print(ROBOT_DATA_RECV_SIGN + 'inf/' + str(message) + '/' + ROBOT_DATA_RECV_SIGN)
+    __last_say_sent = time.ticks_ms()
 
 def hex_to_rgb(value):
     value = value.lstrip('#')

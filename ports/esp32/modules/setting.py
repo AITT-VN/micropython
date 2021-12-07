@@ -7,7 +7,7 @@ CHIP_ID = binascii.hexlify(machine.unique_id()).decode('ascii')
 PREFIX_NAME = 'ohstem-'
 PRODUCT_TYPE = 'xbot'
 PRODUCT_NAME = PREFIX_NAME + PRODUCT_TYPE + '-' + CHIP_ID[-4:]
-VERSION = '1.1'
+VERSION = '1.2'
 
 PORTS_DIGITAL = [(18, 19), (4, 5), (13, 14), (16, 17), (32, 33), (25, 26)]
 PORTS_ADC = [(-1, -1), (-1, -1), (-1, -1), (39, 36), (32, 33), (34, 35)]
@@ -21,6 +21,7 @@ CMD_PROG_START_PREFIX = const(0x12)
 CMD_PROG_END_PREFIX = const(0x13)
 
 CMD_REMOTE_CONTROLLER_PREFIX = const(0x14)
+CMD_USR_MSG_PREFIX = const(0x15) # for user message sent via BLE
 
 # version command 
 CMD_FIRMWARE_INFO = const(0x00)
@@ -67,13 +68,6 @@ ROBOT_MODE_DANCING = const(2)
 ROBOT_MODE_AVOID_OBS = const(3)
 ROBOT_MODE_FOLLOW = const(4)
 ROBOT_MODE_LINE_FINDER = const(5)
-
-KEY_NONE = const(0)
-KEY_UP = const(1)
-KEY_DOWN = const(2)
-KEY_LEFT = const(3)
-KEY_RIGHT = const(4)
-KEY_JOYSTICK = const(9)
 
 ROBOT_DATA_RECV_SIGN = '\x06' # data sign for app receives infor from device (only using for system)
 

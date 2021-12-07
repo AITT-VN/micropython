@@ -87,7 +87,7 @@ class Robot:
             if not wait:
                 return            
 
-    def run_mode_linefinder(self, wait=True, speed=40):
+    def run_mode_linefinder(self, wait=True, speed=60):
         speed_factors = [ 
             [1, 1], [0.5, 1], [0, 1], [-0.5, 0.5], 
             [-2/3, -2/3], [0, 1], [-0.5, 0.5], [-0.7, 0.7] 

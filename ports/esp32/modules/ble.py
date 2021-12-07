@@ -1,7 +1,8 @@
-import os, time
+import os, time, struct
 import bluetooth
 
 from setting import *
+from utility import *
 
 from servo import servo
 from speaker import speaker
@@ -15,8 +16,6 @@ from robot import robot
 from bleuart import BLEUART
 from blerepl import BLEREPL
 
-from ble_controller import ble_controller
-
 ble_o = bluetooth.BLE()
 
 class BLE:
@@ -29,6 +28,10 @@ class BLE:
 
         # used to register callback for system command handling 
         self._on_received_sys_cmd = None
+        self._callbacks = {}
+        self._callbacks['number'] = None
+        self._callbacks['string'] = None
+        self._callbacks['name_value'] = None
         
         # flag to know if device is in programming mode
         self._programming_mode = False
@@ -72,9 +75,10 @@ class BLE:
             elif data[0] == CMD_PROG_END_PREFIX:
                 # end flag of programming mode sent from app
                 self._programming_mode = False
-            elif data[0] == CMD_REMOTE_CONTROLLER_PREFIX:
-                # message sent by wireless remote controller
-                ble_controller.decode(data)
+            elif data[0] == CMD_USR_MSG_PREFIX:
+                # user defined command sent from custom dashboard or other device
+                result = data[1:]
+                self._on_received_msg(result.decode('utf-8'))
             else:
                 if self._programming_mode:
                     if time.ticks_ms() - self._programming_mode_start_time < PROGRAMMING_MODE_TIMEOUT:
@@ -85,8 +89,8 @@ class BLE:
                         self._programming_mode = False
                         self._rx_usr_cmd_buffer = data
                 else:
-                    # user defined command sent from custom dashboard or other robot
-                    self._rx_usr_cmd_buffer = data
+                    # ignore other message
+                    pass
         except Exception as e:
             print('BLE crashed. Error:')
             print(e)
@@ -206,6 +210,36 @@ class BLE:
             else:
                 pass # ignore undefined command
 
+    def _on_received_msg(self, msg):
+        msg = str(msg)
+        if self._callbacks['name_value']:
+            name_value = msg.split('=')
+            if len(name_value) > 1:
+                try:
+                    if '.' not in name_value[1]:
+                        val = int(name_value[1])
+                    else:
+                        val = float(name_value[1])
+
+                    self._callbacks['name_value'](name_value[0], val)
+                    return
+                except:
+                    pass
+        if self._callbacks['number']:
+            try:
+                if '.' not in msg:
+                    number = int(msg)
+                else:
+                    number = float(msg)
+
+                self._callbacks['number'](number)
+                return
+            except:
+                pass
+
+        if self._callbacks['string']:
+            self._callbacks['string'](msg)
+
     def has_repl_data(self): # only used by blerepl
         return len(self._rx_repl_buffer)
 
@@ -218,58 +252,66 @@ class BLE:
     
     def on_received_sys_cmd(self, callback):
         self._on_received_sys_cmd = callback
+    
+    def on_receive_msg(self, type, callback):
+        if type not in ['string', 'number', 'name_value']:
+            print('Invalid event type')
+            return
 
-    def has_msg(self): # for checking user defined message
-        return len(self._rx_usr_cmd_buffer)
-
-    def get_msg(self): # for getting user defined message
-        sz = len(self._rx_usr_cmd_buffer)
-        result = self._rx_usr_cmd_buffer[0:sz]
-        self._rx_usr_cmd_buffer = self._rx_usr_cmd_buffer[sz:]
-        return result.decode('utf-8')
+        self._callbacks[type] = callback
 
     def send_periph(self, data): # only used for peripheral mode, not exposed to user
         self._ble_uart.write_periph(data)
     
-    def send(self, data, response=False): # only used for central mode, exposed to user
-        self._ble_uart.write_central(data, response)
+    def send(self, data):
+        if not isinstance(data, bytearray) and not isinstance(data, str):
+            data = str(data)
+        self._ble_uart.send(struct.pack('B',CMD_USR_MSG_PREFIX) + data)
+
+    def send_value(self, name, value):
+        name = str(name)
+        value = str(value)
+        self._ble_uart.send(struct.pack('B',CMD_USR_MSG_PREFIX) + name + '=' + value)
 
     def connect(self, device): # used for central mode, exposed to user
         not_found = False
 
         def on_scan(addr_type, addr, name):
-            nonlocal device
-            #print(device)
-            #print("Found peripheral:", name)
-            if addr_type is not None and name == device:
+            #print(addr_type, addr, name)
+            if addr_type is not None:
                 self._ble_uart.connect()
             else:
                 nonlocal not_found
                 not_found = True
                 print("No peripheral found.")
 
-        self._ble_uart.scan(callback=on_scan)
+        self._ble_uart.scan(name=device, callback=on_scan)
 
-        # Wait for connection...
-        timeout = 100
+        # Wait for scan completed and connection established
+        timeout = 150
         while not self._ble_uart.is_connected() and timeout > 0:
-            time.sleep_ms(50)
+            time.sleep_ms(100)
             if not_found:
                 return False
             timeout -= 1
-        
-        if timeout < 0:
-            print("Connect failed")
-            return False
-        
-        print("Connected")
-        self._ble_uart.on_notify(self._message_handler)
-        return True
-    
-    def disconnect_periph(self): # used for peripheral mode
-        self._ble_uart.close()
 
-    def disconnect(self): # only used for central mode
+        if timeout == 0:
+            say("Failed to connect to bluetooth device")
+            return False
+
+        return True
+
+    def is_connected(self):
+        return self._ble_uart.is_connected()
+
+    def disconnect(self):
         self._ble_uart.disconnect_central()
+        self._ble_uart.disconnect_periph()
+
+    def on_connected(self, callback):
+        self._ble_uart.on_connected = callback
+
+    def on_disconnected(self, callback):
+        self._ble_uart.on_disconnected = callback
 
 ble = BLE()

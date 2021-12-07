@@ -20,23 +20,27 @@ class Servos:
   def _us2duty(self, value):
     return int(4095 * value / self.period)
 
-  def position(self, index, degrees=None, duty=None):
+  def position(self, index, degrees=None, max_degree=180):
     if index < 0 or index > 7:
       return
     
     if degrees == None:
       return self.pos[index]
 
-    if degrees < 0 or degrees > 180:
+    if degrees < 0 or degrees > max_degree:
       return
 
+    # Lego servo 270 not working with 0 degree
+    if degrees <= 1 and max_degree == 270:
+      degrees = 1
+
     span = self.max_duty - self.min_duty
-    duty = self.min_duty + span * degrees / self.default_degrees
+    duty = self.min_duty + span * degrees / max_degree
     duty = min(self.max_duty, max(self.min_duty, int(duty)))
     self.pca9685.duty(index, duty)
     self.pos[index] = degrees
 
-  def rotate(self, index, change=2, sleep=10, limit=None, duty=None):
+  def rotate(self, index, change=2, sleep=10, limit=None, max_degree=180):
     if index < 0 or index > 7:
       return
 
@@ -47,13 +51,13 @@ class Servos:
         if change <= 0:
           limit = 0
         else:
-          limit = 180
+          limit = max_degree
 
       if (change <= 0 and new_pos < limit) or (change > 0 and new_pos > limit):
         return
 
       span = self.max_duty - self.min_duty
-      duty = self.min_duty + span * new_pos / self.default_degrees
+      duty = self.min_duty + span * new_pos / max_degree
       duty = min(self.max_duty, max(self.min_duty, int(duty)))
       self.pca9685.duty(index, duty)
       self.pos[index] = new_pos

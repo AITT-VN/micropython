@@ -1,4 +1,6 @@
+import time
 from setting import *
+from utility import *
 import bluetooth
 from micropython import const
 from ble_advertising import advertising_payload, decode_name
@@ -70,6 +72,7 @@ class BLEUART:
     def __init__(self, ble_o, rxbuf=100):
         self._ble = ble_o
         self._ble.active(True)
+        #self._ble.config(rxbuf=100)
         self._ble.irq(self._irq)
         ((self._tx_handle, self._rx_handle),) = self._ble.gatts_register_services((_UART_SERVICE,))
         # Increase the size of the rx buffer and enable append mode.
@@ -77,13 +80,18 @@ class BLEUART:
         self._connections = set()
         self._rx_buffer = bytearray()
         self._rx_none = bytearray()
-        self._handler = None
+        self._handler = None # callback for when new data is received
+        self.on_connected = None # callback for when connected
+        self.on_disconnected = None # callback for when disconnected
         self._name = None
+        self._periph_connected = False
+
+        self._last_sent = 0
         self._reset_central_mode()
 
     def _reset_central_mode(self):
         # Cached name and address from a successful scan.
-        self._name_scanned = None
+        self._name_to_scan = None
         self._addr_type = None
         self._addr = None
 
@@ -93,9 +101,6 @@ class BLEUART:
         self._conn_callback = None
         self._read_callback = None
 
-        # Persistent callback for when new data is notified from the device.
-        self._notify_callback = None
-
         # Connected device.
         self._conn_central_handle = None
         self._start_central_handle = None
@@ -103,10 +108,13 @@ class BLEUART:
         self._tx_central_handle = None
         self._rx_central_handle = None
 
+        self._central_connected = False
+
     def start(self, name=None, interval_us=100):
         # Optionally add services=[_UART_UUID], but this is likely to make the payload too large.
         if name != None:
             self._name = name
+        self._ble.config(gap_name=self._name)
         self._payload = advertising_payload(name=self._name, appearance=_ADV_APPEARANCE_GENERIC_COMPUTER)
         self._ble.gap_advertise(interval_us, adv_data=self._payload)
 
@@ -124,14 +132,22 @@ class BLEUART:
             conn_handle, _, _ = data
             self._connections.add(conn_handle)
             led_onboard.show(0, LED_COLOR_BT_CONNECTED)
+            self._periph_connected = True
+            print('Connected by a central device')
+            if self.on_connected:
+                self.on_connected()
 
         elif event == _IRQ_CENTRAL_DISCONNECT:
             conn_handle, _, _ = data
             if conn_handle in self._connections:
                 self._connections.remove(conn_handle)
+            self._periph_connected = False
             # Start advertising again to allow a new connection.
             self.start()
             led_onboard.show(0, LED_COLOR_IDLE)
+            print('Disconnected from central device')
+            if self.on_disconnected:
+                self.on_disconnected()
 
         elif event == _IRQ_GATTS_WRITE:
             conn_handle, value_handle = data
@@ -144,20 +160,23 @@ class BLEUART:
 
         elif event == _IRQ_SCAN_RESULT:
             addr_type, addr, adv_type, rssi, adv_data = data
+            #print('Scan result: ', addr_type, addr, adv_type, rssi, adv_data)
             if adv_type in (_ADV_IND, _ADV_DIRECT_IND):
-                # Found a potential device, remember it and stop scanning.
-                self._addr_type = addr_type
-                self._addr = bytes(addr)  # Note: addr buffer is owned by caller so need to copy it.
-                self._name_scanned = decode_name(adv_data) or "?"                
-                if self._name_scanned != '?':
-                  #print(self._name_scanned)
-                  self._ble.gap_scan(None)
+                _name_scanned = decode_name(adv_data) or "?"
+                #print('Found device: ', _name_scanned)
+                if _name_scanned == self._name_to_scan:
+                    #print('selected device: ', _name_scanned)
+                    # Found a potential device, remember it and stop scanning.
+                    self._addr_type = addr_type
+                    self._addr = bytes(addr)  # Note: addr buffer is owned by caller so need to copy it.
+                    self._ble.gap_scan(None)
+                    print('Now stop scanning')
 
         elif event == _IRQ_SCAN_DONE:
             if self._scan_callback:
                 if self._addr:
                     # Found a device during the scan (and the scan was explicitly stopped).
-                    self._scan_callback(self._addr_type, self._addr, self._name_scanned)
+                    self._scan_callback(self._addr_type, self._addr, self._name_to_scan)
                     self._scan_callback = None
                 else:
                     # Scan timed out.
@@ -165,6 +184,7 @@ class BLEUART:
 
         elif event == _IRQ_PERIPHERAL_CONNECT:
             # Connect successful.
+            print('Connected to periph device')
             conn_handle, addr_type, addr = data
             if addr_type == self._addr_type and addr == self._addr:
                 self._conn_central_handle = conn_handle
@@ -172,10 +192,13 @@ class BLEUART:
 
         elif event == _IRQ_PERIPHERAL_DISCONNECT:
             # Disconnect (either initiated by us or the remote end).
+            print('Disconnected to periph device')
             conn_handle, _, _ = data
             if conn_handle == self._conn_central_handle:
                 # If it was initiated by us, it'll already be reset.
                 self._reset_central_mode()
+            if self.on_disconnected:
+                self.on_disconnected()
 
         elif event == _IRQ_GATTC_SERVICE_RESULT:
             # Connected device returned a service.
@@ -184,6 +207,7 @@ class BLEUART:
             #print(uuid, _UART_SERVICE_UUID)
             if conn_handle == self._conn_central_handle and uuid == _UART_SERVICE_UUID:
                 self._start_central_handle, self._end_central_handle = start_handle, end_handle
+                self._central_connected = True
 
         elif event == _IRQ_GATTC_SERVICE_DONE:
             # Service query complete.
@@ -209,33 +233,43 @@ class BLEUART:
                 # We've finished connecting and discovering device, fire the connect callback.
                 if self._conn_callback:
                     self._conn_callback()
+                if self.on_connected:
+                    self.on_connected()
             else:
                 print("Failed to find uart rx characteristic.")
 
-        elif event == _IRQ_GATTC_WRITE_DONE:
-            conn_handle, value_handle, status = data
-            #print("TX complete")
+        #elif event == _IRQ_GATTC_WRITE_DONE:
+        #    conn_handle, value_handle, status = data
 
         elif event == _IRQ_GATTC_NOTIFY:
             conn_handle, value_handle, notify_data = data
             if conn_handle == self._conn_central_handle and value_handle == self._tx_central_handle:
-                if self._notify_callback:
-                    m = notify_data
-                    '''
-                    try:
-                        msg = m.decode('utf8')
-                    except Exception:
-                    # except UnicodeError:
-                        msg = ''.join([chr(c) for c in m])
-                    '''
-                    self._notify_callback(bytearray(notify_data))
+                if self._handler:
+                    self._handler(bytearray(notify_data))
+
+    def send(self, data):
+        if (time.ticks_ms() - self._last_sent) < 50: # avoid flooding send
+            time.sleep_ms(50)
+        if self._central_connected:
+            # in central mode
+            self.write_central(data)
+
+        elif self._periph_connected:
+            # in periph mode
+            self.write_periph(data)
+        else:
+            return
+        self._last_sent = time.ticks_ms()
 
     def write_periph(self, data): # send data, used for peripheral mode
+        if not self._periph_connected:
+            return
         for conn_handle in self._connections:
             self._ble.gatts_notify(conn_handle, self._tx_handle, data)
     
     def write_central(self, v, response=False): # send data, used for central mode
-        if not self.is_connected():
+        if not self._central_connected or self._conn_central_handle == None or self._rx_central_handle == None:
+            # not connected yet
             return
         self._ble.gattc_write(self._conn_central_handle, self._rx_central_handle, v, 1 if response else 0)
 
@@ -245,25 +279,22 @@ class BLEUART:
         self._connections.clear()
 
     def disconnect_central(self): # Disconnect, used for central mode
-        if not self._conn_central_handle:
+        if self._conn_central_handle is None:
             return
         self._ble.gap_disconnect(self._conn_central_handle)
-        self._reset_central_mode()
 
     # Returns true if we've successfully connected and discovered characteristics.
     def is_connected(self):
-        return (
-            self._conn_central_handle is not None
-            and self._tx_central_handle is not None
-            and self._rx_central_handle is not None
-        )
+        return self._central_connected or self._periph_connected
 
     # Find a device advertising the environmental sensor service.
-    def scan(self, callback=None):
-        self._addr_type = None
-        self._addr = None
+    def scan(self, name, callback=None):
+        self.disconnect_central()
+        self._reset_central_mode()
         self._scan_callback = callback
-        self._ble.gap_scan(2000, 30000, 30000)
+        self._name_to_scan = name
+        say('Searching bluetooth devices...')
+        self._ble.gap_scan(15000)
 
     # Connect to the specified device (otherwise use cached address from a scan).
     def connect(self, addr_type=None, addr=None, callback=None):
@@ -274,7 +305,3 @@ class BLEUART:
             return False
         self._ble.gap_connect(self._addr_type, self._addr)
         return True
-    
-    # Set handler for when data is received in central mode
-    def on_notify(self, callback):
-        self._notify_callback = callback

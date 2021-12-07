@@ -132,10 +132,20 @@ if not __main_exists:
     # run default code
     from ir_receiver import *
 
+    KEY_NONE = const(0)
+    KEY_UP = const(1)
+    KEY_DOWN = const(2)
+    KEY_LEFT = const(3)
+    KEY_RIGHT = const(4)
+
+    KEY_S1_CLOSE = const(20)
+    KEY_S1_OPEN = const(21)
+
     mode = ROBOT_MODE_DO_NOTHING
     mode_changed = False
     current_speed = 80
     key = KEY_NONE
+    ble_connected = False
 
     def button_callback():
         global mode, mode_changed
@@ -149,6 +159,7 @@ if not __main_exists:
             mode = ROBOT_MODE_DO_NOTHING
         
         mode_changed = True
+        time.sleep_ms(100)
         print('mode changed by button')
 
     btn_onboard.on_pressed = button_callback
@@ -167,6 +178,10 @@ if not __main_exists:
         elif cmd == IR_REMOTE_D:
             mode = ROBOT_MODE_FOLLOW
             mode_changed = True
+        elif cmd == IR_REMOTE_E:
+            key = KEY_S1_CLOSE
+        elif cmd == IR_REMOTE_F:
+            key = KEY_S1_OPEN
         elif cmd == IR_REMOTE_UP:
             key = KEY_UP
         elif cmd == IR_REMOTE_DOWN:
@@ -199,39 +214,49 @@ if not __main_exists:
 
     ir_rx.on_received(ir_callback)
 
-    def ble_controller_callback():
-        global mode, mode_changed, current_speed, key
+    def on_ble_connected_callback():
+        global ble_connected
+        ble_connected = True
 
-        if ble_controller.get_key_pressed('X'):
-            mode = ROBOT_MODE_DO_NOTHING
-            mode_changed = True
-        elif ble_controller.get_key_pressed('Y'):
-            mode = ROBOT_MODE_AVOID_OBS
-            mode_changed = True
-        elif ble_controller.get_key_pressed('A'):
-            mode = ROBOT_MODE_FOLLOW
-            mode_changed = True
-        elif ble_controller.get_key_pressed('B'):
-            mode = ROBOT_MODE_LINE_FINDER
-            mode_changed = True
-        
-        if mode_changed:
-            print('mode changed by ble remote controller')
-            return
+    ble.on_connected(on_ble_connected_callback)
 
-        if ble_controller.get_key_pressed('UP'):
-            key = KEY_UP
-        elif ble_controller.get_key_pressed('DOWN'):
-            key = KEY_DOWN
-        elif ble_controller.get_key_pressed('LEFT'):
-            key = KEY_LEFT
-        elif ble_controller.get_key_pressed('RIGHT'):
-            key = KEY_RIGHT
-        else:
-            # joystick processing
-            key = KEY_JOYSTICK
+    def on_ble_disconnected_callback():
+        global ble_connected, current_speed
+        ble_connected = False
+        current_speed = 80
 
-    ble_controller.on_received = ble_controller_callback
+    ble.on_disconnected(on_ble_disconnected_callback)
+
+
+    def on_ble_message_name_value_receive_callback(name, value):
+        global current_speed, key, ble_key_received
+
+        if name == 'F':
+            robot.forward(value)
+        elif name == 'B':
+            robot.backward(value)
+        elif name == 'L':
+            robot.turn_left(value/1.5)
+        elif name == 'R':
+            robot.turn_right(value/1.5)
+        if name == 'FL':
+            robot.move(4, value/1.5)
+        elif name == 'BL':
+            robot.move(6, value/1.5)
+        elif name == 'FR':
+            robot.move(2, value/1.5)
+        elif name == 'BR':
+            robot.move(8, value/1.5)
+        elif name == 'S':
+            current_speed = 80
+            robot.stop()
+        elif name == 'S1':
+            if value == 0:
+                servo.rotate(0, -1, 5, servo.position(0)-5)
+            else:
+                servo.rotate(0, 1, 5, servo.position(0)+5)
+
+    ble.on_receive_msg("name_value", on_ble_message_name_value_receive_callback)
 
     try:
         while True :
@@ -248,28 +273,26 @@ if not __main_exists:
                 mode_changed = False
 
             if mode == ROBOT_MODE_DO_NOTHING:
-                if key != KEY_NONE:
-                    if key == KEY_UP:
-                        robot.forward(current_speed)
-                    elif key == KEY_DOWN:
-                        robot.backward(current_speed)
-                    elif key == KEY_LEFT:
-                        robot.turn_left(current_speed/1.5)
-                    elif key == KEY_RIGHT:
-                        robot.turn_right(current_speed/1.5)
-                    elif key == KEY_JOYSTICK:
-                        dir = ble_controller.get_joystick('J1_DIRECTION')
-                        speed = ble_controller.get_joystick('J1_DISTANCE')
-                        if speed != 0:
-                            robot.move(dir, speed)
-                        else:
-                            robot.stop()
-                    key = KEY_NONE
-                else:
-                    robot.stop()
+                if not ble_connected:
+                    if key != KEY_NONE:
+                        if key == KEY_UP:
+                            robot.forward(current_speed)
+                        elif key == KEY_DOWN:
+                            robot.backward(current_speed)
+                        elif key == KEY_LEFT:
+                            robot.turn_left(current_speed/1.5)
+                        elif key == KEY_RIGHT:
+                            robot.turn_right(current_speed/1.5)
+                        elif key == KEY_S1_CLOSE:
+                            servo.rotate(0, -1, 5, servo.position(0)-5)
+                        elif key == KEY_S1_OPEN:
+                            servo.rotate(0, 1, 5, servo.position(0)+5)
 
-                ir_rx.clear_code()
-                time.sleep_ms(100)
+                        key = KEY_NONE
+                    else:
+                        robot.stop()
+                    ir_rx.clear_code()
+                    time.sleep_ms(100)
 
             elif mode == ROBOT_MODE_AVOID_OBS:
                 robot.run_mode_obs(False)
@@ -287,8 +310,10 @@ if not __main_exists:
         btn_onboard.on_pressed = None
         ir_rx.on_received(None)
         ir_rx.stop()
-        ble_controller.on_received = None
-        del mode, mode_changed, current_speed
+        ble.on_receive_msg("name_value", None)
+        ble.on_connected(None)
+        ble.on_disconnected(None)
+        del mode, mode_changed, current_speed, ble_connected, key, on_ble_message_name_value_receive_callback, on_ble_connected_callback, on_ble_disconnected_callback, button_callback
         gc.collect()
 """
         )
