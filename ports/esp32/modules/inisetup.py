@@ -250,11 +250,9 @@ if not __main_exists:
         elif name == 'S':
             current_speed = 80
             robot.stop()
-        elif name == 'S1':
-            if value == 0:
-                servo.rotate(0, -1, 5, servo.position(0)-5)
-            else:
-                servo.rotate(0, 1, 5, servo.position(0)+5)
+        elif name in ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8']:
+            index = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'].index(name)
+            servo.position(index, value)
 
     ble.on_receive_msg("name_value", on_ble_message_name_value_receive_callback)
 
@@ -291,7 +289,7 @@ if not __main_exists:
                         key = KEY_NONE
                     else:
                         robot.stop()
-                    ir_rx.clear_code()
+
                     time.sleep_ms(100)
 
             elif mode == ROBOT_MODE_AVOID_OBS:
