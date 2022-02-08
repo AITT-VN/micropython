@@ -32,7 +32,7 @@ Currently MicroPython supports v4.0.2, v4.1.1 and v4.2,
 although other IDF v4 versions may also work.
 
 To install the ESP-IDF the full instructions can be found at the
-[Espressif Getting Started guide](https://docs.espressif.com/projects/esp-idf/en/v4.0.2/get-started/index.html#installation-step-by-step).
+[Espressif Getting Started guide](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/get-started/index.html#installation-step-by-step).
 
 If you are on a Windows machine then the [Windows Subsystem for
 Linux](https://msdn.microsoft.com/en-au/commandline/wsl/install_guide) is the
@@ -74,6 +74,12 @@ $ source export.sh   # (or export.bat on Windows)
 
 The `install.sh` step only needs to be done once. You will need to source
 `export.sh` for every new session.
+
+**Note:** If you are building MicroPython for the ESP32-S2, ESP32-C3 or ESP32-S3,
+please ensure you are using the following required IDF versions:
+- ESP32-S3 currently requires latest `master`, but eventually `v4.4` or later when
+  it's available.
+- ESP32-S2 and ESP32-C3 require `v4.3.1` or later.
 
 Building the firmware
 ---------------------
