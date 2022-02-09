@@ -1,17 +1,17 @@
 import time
-from umqttsimple import MQTTClient, MQTTException
+from umqttsimple import MQTTClient
+#from umqtt.robust import MQTTClient
 import ubinascii
 import machine
+import micropython
 import network
 from utility import *
 
 class Wifi:
 
-    TOPIC_PREFIX = 'ohstem/'
+    TOPIC_PREFIX = 'yolobit/'
 
     def __init__(self):
-        self.station = None
-        self.ap = None
         self.client = None
         self.message = ''
         self.topic = ''
@@ -19,10 +19,9 @@ class Wifi:
         self.callbacks = {}
 
     def __on_receive_message(self, topic, msg):
-        #print('Received: ', msg, topic)
+        #print((str(topic), str(msg)))
         msg = msg.decode('ascii')
         topic = topic.decode('ascii')
-        
         if callable(self.callbacks.get(topic)):
             self.callbacks.get(topic)(msg)
 
@@ -75,29 +74,20 @@ class Wifi:
 
         print('Connection successful')
         print(self.ap.ifconfig())
-
-    def connect(self, ssid, password, device_name, mqtt_server='broker.emqx.io', port=1883, username='', user_pass=''):
+    
+    def connect(self, ssid, password, device_name, mqtt_server='broker.hivemq.com', port=1883, username='', user_pass=''):
         client_id = str(ubinascii.hexlify(machine.unique_id())) + str(time.ticks_ms())
         self.connect_wifi(ssid, password, True)
         self.client = MQTTClient(client_id, mqtt_server, port, username, user_pass)
         self.client.set_callback(self.__on_receive_message)
-        try:
-            self.client.connect()
-        except MQTTException:
-            say('Failed to connect to server')
-
+        self.client.connect()
         self.device_name = device_name
-        say('Connected to server')
+        say('Connected to MQTT broker')
 
     def check_message(self):
         if self.client == None:
             return
-        try:
-          self.client.check_msg()
-        except Exception as err:
-          say('Check message failed')
-          time.sleep_ms(500)
-          raise err
+        self.client.check_msg()
     
     def on_receive_message(self, topic, callback):
         full_topic = Wifi.TOPIC_PREFIX + self.device_name
@@ -107,29 +97,42 @@ class Wifi:
         self.callbacks[full_topic] = callback
         self.client.subscribe(full_topic)
 
-    def send_message(self, topic, message):
+    def send_message(self, device_name, message):
         if self.client == None:
             return
-        topic_pub = Wifi.TOPIC_PREFIX + self.device_name + '/' + topic
+        topic_pub = Wifi.TOPIC_PREFIX + device_name
         self.client.publish(topic_pub, str(message))
+    
+    def log_data(self, topic, message):
+        if self.client == None:
+            return
+        topic = Wifi.TOPIC_PREFIX + self.device_name + '/' + topic
+        self.client.publish(topic, str(message))
   
-wifi = Wifi()
-
 def unit_test():    
-    wifi.connect('Sandiego2', '0988807067', 'myyolo')
+    from machine import Pin
+    import time
+    wifi = Wifi()
+    wifi.connect('Sandiego', '0988807067', 'myyolo')
     wifi.send_message('myyolo', 'Hello. I am yolobit')
 
     def process(msg):
       print(msg)
 
-    wifi.on_receive_message('V1', process)
-    wifi.on_receive_message('', process)
+    wifi.on_receive_message('message', process)
     i = 0
     while True:
-      wifi.check_message()
-      wifi.send_message('V1', i)
+      wifi.check_message()        
+      wifi.log_data('temp', i)
       i += 1
       time.sleep(1)
+
+__wifi__ = Wifi()
+connect = __wifi__.connect
+check_message = __wifi__.check_message
+send_message = __wifi__.send_message
+log_data = __wifi__.log_data
+on_receive_message = __wifi__.on_receive_message
 
 if __name__ == '__main__':
     unit_test()

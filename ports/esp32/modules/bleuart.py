@@ -1,11 +1,8 @@
 import time
 from setting import *
-from utility import *
 import bluetooth
 from micropython import const
-from ble_advertising import advertising_payload, decode_name
-
-from global_objects import led_onboard
+from ble_broadcast import advertising_payload, decode_name
 
 _IRQ_CENTRAL_CONNECT = const(1)
 _IRQ_CENTRAL_DISCONNECT = const(2)
@@ -69,10 +66,10 @@ _ADV_APPEARANCE_GENERIC_COMPUTER = const(128)
 '''
 
 class BLEUART:
-    def __init__(self, ble_o, rxbuf=100):
+    def __init__(self, ble_o, rxbuf=1024):
         self._ble = ble_o
         self._ble.active(True)
-        #self._ble.config(rxbuf=100)
+        self._ble.config(rxbuf=2048)
         self._ble.irq(self._irq)
         ((self._tx_handle, self._rx_handle),) = self._ble.gatts_register_services((_UART_SERVICE,))
         # Increase the size of the rx buffer and enable append mode.
@@ -90,10 +87,11 @@ class BLEUART:
         self._reset_central_mode()
 
     def _reset_central_mode(self):
-        # Cached name and address from a successful scan.
+        # Cached ble device name and address found from a successful scan.
         self._name_to_scan = None
         self._addr_type = None
         self._addr = None
+        self._rssi = None
 
         # Callbacks for completion of various operations.
         # These reset back to None after being invoked.
@@ -131,7 +129,6 @@ class BLEUART:
         if event == _IRQ_CENTRAL_CONNECT:
             conn_handle, _, _ = data
             self._connections.add(conn_handle)
-            led_onboard.show(0, LED_COLOR_BT_CONNECTED)
             self._periph_connected = True
             print('Connected by a central device')
             if self.on_connected:
@@ -144,7 +141,6 @@ class BLEUART:
             self._periph_connected = False
             # Start advertising again to allow a new connection.
             self.start()
-            led_onboard.show(0, LED_COLOR_IDLE)
             print('Disconnected from central device')
             if self.on_disconnected:
                 self.on_disconnected()
@@ -160,17 +156,22 @@ class BLEUART:
 
         elif event == _IRQ_SCAN_RESULT:
             addr_type, addr, adv_type, rssi, adv_data = data
-            #print('Scan result: ', addr_type, addr, adv_type, rssi, adv_data)
+            print('Scan result: ', addr_type, addr, adv_type, rssi, adv_data)
             if adv_type in (_ADV_IND, _ADV_DIRECT_IND):
                 _name_scanned = decode_name(adv_data) or "?"
-                #print('Found device: ', _name_scanned)
+                print('Found device: ', _name_scanned)
                 if _name_scanned == self._name_to_scan:
-                    #print('selected device: ', _name_scanned)
+                    print('Device found has name matched. Stop scanning and connect')
                     # Found a potential device, remember it and stop scanning.
                     self._addr_type = addr_type
                     self._addr = bytes(addr)  # Note: addr buffer is owned by caller so need to copy it.
                     self._ble.gap_scan(None)
-                    print('Now stop scanning')
+                elif self._name_to_scan == None or self._name_to_scan == '': # scanning for nearby device case
+                    # save for later
+                    if self._rssi == None or self._rssi < rssi: # found nearer device
+                        self._addr_type = addr_type
+                        self._addr = bytes(addr)  # Note: addr buffer is owned by caller so need to copy it.
+                        self._rssi = rssi
 
         elif event == _IRQ_SCAN_DONE:
             if self._scan_callback:
@@ -271,7 +272,11 @@ class BLEUART:
         if not self._central_connected or self._conn_central_handle == None or self._rx_central_handle == None:
             # not connected yet
             return
-        self._ble.gattc_write(self._conn_central_handle, self._rx_central_handle, v, 1 if response else 0)
+        try:
+            self._ble.gattc_write(self._conn_central_handle, self._rx_central_handle, v, 1 if response else 0)
+        except:
+            # something wrong when sending ble data which cannot be handled
+            pass
 
     def disconnect_periph(self): # Disconnect, used for peripheral mode
         for conn_handle in self._connections:
@@ -293,7 +298,7 @@ class BLEUART:
         self._reset_central_mode()
         self._scan_callback = callback
         self._name_to_scan = name
-        say('Searching bluetooth devices...')
+        print('Scanning bluetooth devices...')
         self._ble.gap_scan(15000)
 
     # Connect to the specified device (otherwise use cached address from a scan).

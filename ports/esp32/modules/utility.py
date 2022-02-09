@@ -1,12 +1,9 @@
-import machine
 import time
 from setting import *
 
-i2c = machine.SoftI2C(scl=machine.Pin(22), sda=machine.Pin(21))
-
 __last_say_sent = 0
 
-def say(message) :
+def say(message):
     global __last_say_sent
     if (time.ticks_ms() - __last_say_sent) < 100: # avoid flooding send, especially via BLE
         time.sleep_ms(100)
@@ -17,6 +14,9 @@ def hex_to_rgb(value):
     value = value.lstrip('#')
     lv = len(value)
     return tuple(int(value[i:i + lv // 3], 16) for i in range(0, lv, lv // 3))
+
+def rgb_to_hex(rgb):
+    return '#%02x%02x%02x' % rgb
 
 def translate(value, left_min, left_max, right_min, right_max):
     # Figure out how 'wide' each range is

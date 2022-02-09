@@ -2,16 +2,6 @@ import os, time, struct
 import bluetooth
 
 from setting import *
-from utility import *
-
-from servo import servo
-from speaker import speaker
-from led import led_onboard
-from ultrasonic import ultrasonic
-from line_array import line_array
-from motor import motor
-
-from robot import robot
 
 from bleuart import BLEUART
 from blerepl import BLEREPL
@@ -29,9 +19,9 @@ class BLE:
         # used to register callback for system command handling 
         self._on_received_sys_cmd = None
         self._callbacks = {}
-        self._callbacks['number'] = None
-        self._callbacks['string'] = None
-        self._callbacks['name_value'] = None
+        self._callbacks['number'] = {}
+        self._callbacks['string'] = {}
+        self._callbacks['name_value'] = {}
         
         # flag to know if device is in programming mode
         self._programming_mode = False
@@ -77,6 +67,8 @@ class BLE:
                 self._programming_mode = False
             elif data[0] == CMD_USR_MSG_PREFIX:
                 # user defined command sent from custom dashboard or other device
+                #self._rx_usr_cmd_buffer = data[1:]
+                #sz = len(self._rx_usr_cmd_buffer)
                 result = data[1:]
                 self._on_received_msg(result.decode('utf-8'))
             else:
@@ -97,113 +89,7 @@ class BLE:
 
     def _process_sys_cmd(self, cmd):
         if cmd[0] == CMD_FIRMWARE_INFO:
-            self.send_periph(ROBOT_DATA_RECV_SIGN + 'prd/' + PRODUCT_TYPE + '/' + VERSION + '/' + ROBOT_DATA_RECV_SIGN)
-
-        elif cmd[0] == CMD_STOP:
-            robot.stop()
-
-        elif cmd[0] == CMD_RUN_F:
-            # get speed
-            if len(cmd) > 1:
-                speed = cmd[1]
-                robot.forward(speed)
-            else:
-                robot.forward()
-
-        elif cmd[0] == CMD_RUN_B:
-            # get speed
-            if len(cmd) > 1:
-                speed = cmd[1]
-                robot.backward(speed)
-            else:
-                robot.backward()
-
-        elif cmd[0] == CMD_RUN_L:
-            # get speed
-            if len(cmd) > 1:
-                speed = cmd[1]
-                robot.turn_left(speed)
-            else:
-                robot.turn_left()
-
-        elif cmd[0] == CMD_RUN_LB:
-            # get speed
-            if len(cmd) > 1:
-                speed = cmd[1]
-                robot.turn_left_backward(speed)
-            else:
-                robot.turn_left_backward()
-
-        elif cmd[0] == CMD_RUN_R:
-            # get speed
-            if len(cmd) > 1:
-                speed = cmd[1]
-                robot.turn_right(speed)
-            else:
-                robot.turn_right()
-
-        elif cmd[0] == CMD_RUN_RB:
-            # get speed
-            if len(cmd) > 1:
-                speed = cmd[1]
-                robot.turn_right_backward(speed)
-            else:
-                robot.turn_right_backward()
-
-        elif cmd[0] == CMD_DRIVE:
-            # get dir and speed
-            dir = cmd[1]
-            if len(cmd) > 2:
-                speed = cmd[2]
-                robot.move(dir, speed)
-            else:
-                robot.move(dir)
-
-        elif cmd[0] == CMD_ROBOT_SPEED:
-            # get speed
-            speed = cmd[1]
-            robot.set_speed(speed)
-
-        elif cmd[0] == CMD_MOTOR_SPEED:
-            # convert negative value if user sends -100 -> -1 then ble receives 150 -> 255
-            if cmd[1] > 150:
-                motor.speed(0, cmd[1] - 256)
-            else :
-                motor.speed(0, cmd[1])
-            
-            if cmd[2] > 150:
-                motor.speed(1, cmd[2] - 256)
-            else :
-                motor.speed(1, cmd[2])
-
-        elif cmd[0] == CMD_SERVO_POS:
-            index = cmd[1]
-            angle = cmd[2]
-            servo.rotate(index, angle, speed_mode=0)
-
-        elif cmd[0] == CMD_SPEAKER_BEEP:
-            speaker.play(['C5:2'])
-        
-        elif cmd[0] == CMD_SPEAKER_TONE:
-            if cmd[1] == 1:
-                speaker.play_tone(cmd[2:])
-            else:
-                speaker.stop_duty()
-
-        elif cmd[0] == CMD_LED_COLOR:
-            which_led = cmd[1]
-            red = cmd[2]
-            green = cmd[3]
-            blue = cmd[4]
-            led_onboard.show(which_led, (red, green, blue))
-
-        elif cmd[0] == CMD_ULTRASONIC_SENSOR:
-            port = cmd[1]
-            self.send_periph(ultrasonic.distance_cm(port))
-
-        elif cmd[0] == CMD_LINE_SENSOR:
-            port = cmd[1]
-            self.send_periph(line_array.read(port))
+            self._ble_uart.write_periph(ROBOT_DATA_RECV_SIGN + 'prd/' + PRODUCT_TYPE + '/' + VERSION + '/' + ROBOT_DATA_RECV_SIGN)
         else:
             if self._on_received_sys_cmd != None:
                 self._on_received_sys_cmd(cmd)
@@ -249,10 +135,10 @@ class BLE:
         result = self._rx_repl_buffer[0:sz]
         self._rx_repl_buffer = self._rx_repl_buffer[sz:]
         return result
-    
+
     def on_received_sys_cmd(self, callback):
         self._on_received_sys_cmd = callback
-    
+
     def on_receive_msg(self, type, callback):
         if type not in ['string', 'number', 'name_value']:
             print('Invalid event type')
@@ -260,9 +146,6 @@ class BLE:
 
         self._callbacks[type] = callback
 
-    def send_periph(self, data): # only used for peripheral mode, not exposed to user
-        self._ble_uart.write_periph(data)
-    
     def send(self, data):
         if not isinstance(data, bytearray) and not isinstance(data, str):
             data = str(data)
@@ -273,7 +156,12 @@ class BLE:
         value = str(value)
         self._ble_uart.send(struct.pack('B',CMD_USR_MSG_PREFIX) + name + '=' + value)
 
-    def connect(self, device): # used for central mode, exposed to user
+    def send_periph(self, data): # only used for peripheral mode, not exposed to user
+        self._ble_uart.write_periph(data)
+
+    # scan and connect to device which has given name 
+    # used for central mode, exposed to user
+    def connect(self, device):
         not_found = False
 
         def on_scan(addr_type, addr, name):
@@ -296,11 +184,41 @@ class BLE:
             timeout -= 1
 
         if timeout == 0:
-            say("Failed to connect to bluetooth device")
+            print("Failed to scan and connect to periph device")
             return False
 
         return True
 
+    # connect to any nearby ble device
+    # used for central mode, exposed to user
+    def connect_nearby(self):
+        not_found = False
+
+        def on_scan(addr_type, addr, name):
+            #print(addr_type, addr, name)
+            if addr_type is not None:
+                self._ble_uart.connect()
+            else:
+                nonlocal not_found
+                not_found = True
+                print("No peripheral found.")
+
+        self._ble_uart.scan(name='', callback=on_scan)
+
+        # Wait for scan completed and connection established
+        timeout = 150
+        while not self._ble_uart.is_connected() and timeout > 0:
+            time.sleep_ms(100)
+            if not_found:
+                return False
+            timeout -= 1
+
+        if timeout == 0:
+            print("Failed to scan and connect to periph device")
+            return False
+
+        return True
+    
     def is_connected(self):
         return self._ble_uart.is_connected()
 
@@ -314,4 +232,4 @@ class BLE:
     def on_disconnected(self, callback):
         self._ble_uart.on_disconnected = callback
 
-ble = BLE()
+ble = BLE() 

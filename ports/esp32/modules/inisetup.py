@@ -40,79 +40,82 @@ def setup():
         f.write(
             """\
 # This file is executed on every boot (including wake-boot from deepsleep)
-import machine, esp, gc, time, os
-from led import led_onboard
-from _thread import start_new_thread
+import os, time, gc, esp, sys
+from machine import Pin, reset
+from neopixel import NeoPixel
+
+from setting import *
+from utility import *
 
 esp.osdebug(None)
-machine.freq(240000000)
 
-led_onboard.show(0, (0, 0, 0))
+if Pin(BTN_A_PIN, Pin.IN, Pin.PULL_UP).value() == 0:
+  print('Button A is pressed during boot')
+  press_begin = time.ticks_ms()
+  press_duration = 0
 
-config_btn = machine.Pin(23, machine.Pin.IN, machine.Pin.PULL_UP)
+  while Pin(BTN_A_PIN, Pin.IN, Pin.PULL_UP).value() == 0:
+    press_end = time.ticks_ms()
+    press_duration = time.ticks_diff(press_end, press_begin)
 
-if config_btn.value() == 0:
-    print('config button is pressed')
-    # start while loop until btn is released
-    press_begin = time.ticks_ms()
-    press_duration = 0
-    while config_btn.value() == 0:
-        press_end = time.ticks_ms()
-        press_duration = time.ticks_diff(press_end, press_begin)
-        print(press_duration)
-        if press_duration > 2000: # button pressed more than 2s
-            break
-        time.sleep_ms(100)
+    if press_duration > 2000:
+      print('Button A pressed longer than 2 seconds during boot')
+      print('Remove main.py...')
+      try:
+          os.remove('main.py')
+      except OSError:  # remove failed
+          pass
 
-    # check how long it was pressed
-    if press_duration > 2000:    
-        # if more than 2 seconds => reset main.py
-        for _ in range(3):
-            led_onboard.show(0, (255, 0, 0))
-            time.sleep_ms(50)
-            led_onboard.show(0, (0, 0, 0))
-            time.sleep_ms(50)
+      try:
+          os.stat('main.py')
+          print('...failed.')
+      except OSError:  # stat failed
+          print('...OK.')
+      
+      print('Reset now...')
 
-        print('Config button pressed longer than 2 seconds')
-        print('Remove main.py...')
-        try:
-            os.remove('main.py')
-        except OSError:  # remove failed
-            pass
+      np = NeoPixel(Pin(RGB_LED_PIN), 25)
 
-        try:
-            os.stat('main.py')
-            print('...failed.')
-        except OSError:  # stat failed
-            print('...OK.')
-        
-        print('Reset now...')
-        machine.reset()
+      for i in range(3):
+        np.fill((50,0,0))
+        np.write()
+        time.sleep_ms(200)
+        np.fill((0,0,0))
+        np.write()
+        time.sleep_ms(200)
+      reset()
 
-def blink_status_led():
-    global stop_blink_thread
-    status_led_on = 1
-    while True:
-        if status_led_on:
-            led_onboard.show(0, (255, 0, 0))
-        else:
-            led_onboard.show(0, (0, 0, 0))
-        status_led_on = 1 - status_led_on
-        time.sleep_ms(100)
-        if stop_blink_thread:
-            led_onboard.show(0, (255, 0, 0))
-            return
+    time.sleep_ms(100)
 
-stop_blink_thread = False
-start_new_thread(blink_status_led, ())
+def stop_all():
+  pass
 
-from global_objects import *
+def run(mod):
+  if mod in sys.modules:
+    del sys.modules[mod]
+  __import__(mod)
 
-robot.stop_all()
-ble.start()
+while True:
+  try:
 
-stop_blink_thread = True
-speaker.play(POWER_UP, wait=False)
+    if DEV_VERSION >= 4:
+      try:
+        run('bleuart')
+        run('blerepl')
+        run('ble')
+        from ble import ble_o, ble  
+        ble.start()
+      except Exception as err:
+        print('Failed to start Bluetooth: ')
+        print(err)
+    else:
+      print('This device does not support Bluetooth: ')
+
+    gc.collect()
+    print('Yolo:Bit firmware version',  VERSION)
+    break
+  except KeyboardInterrupt as err:
+    print('Device is booting')
 
 __main_exists = False
 
@@ -123,196 +126,56 @@ try:
 except OSError:  # stat failed
     pass
 
-print('xBot firmware version:', VERSION)
-print('Ready to connect')
-motion.calibrateZ()
-gc.collect()
-
 if not __main_exists:
-    # run default code
-    from ir_receiver import *
-
-    KEY_NONE = const(0)
-    KEY_UP = const(1)
-    KEY_DOWN = const(2)
-    KEY_LEFT = const(3)
-    KEY_RIGHT = const(4)
-
-    KEY_S1_CLOSE = const(20)
-    KEY_S1_OPEN = const(21)
-
-    mode = ROBOT_MODE_DO_NOTHING
-    mode_changed = False
-    current_speed = 80
-    key = KEY_NONE
-    ble_connected = False
-
-    def button_callback():
-        global mode, mode_changed
-        if mode == ROBOT_MODE_DO_NOTHING:
-            mode = ROBOT_MODE_AVOID_OBS
-        elif mode == ROBOT_MODE_AVOID_OBS:
-            mode = ROBOT_MODE_FOLLOW
-        elif mode == ROBOT_MODE_FOLLOW:
-            mode = ROBOT_MODE_LINE_FINDER
-        elif mode == ROBOT_MODE_LINE_FINDER:
-            mode = ROBOT_MODE_DO_NOTHING
-        
-        mode_changed = True
-        time.sleep_ms(100)
-        print('mode changed by button')
-
-    btn_onboard.on_pressed = button_callback
-
-    def ir_callback(cmd, addr, ext):
-        global mode, mode_changed, current_speed, key
-        if cmd == IR_REMOTE_A:
-            mode = ROBOT_MODE_DO_NOTHING
-            mode_changed = True
-        elif cmd == IR_REMOTE_B:
-            mode = ROBOT_MODE_AVOID_OBS
-            mode_changed = True
-        elif cmd == IR_REMOTE_C:
-            mode = ROBOT_MODE_LINE_FINDER
-            mode_changed = True
-        elif cmd == IR_REMOTE_D:
-            mode = ROBOT_MODE_FOLLOW
-            mode_changed = True
-        elif cmd == IR_REMOTE_E:
-            key = KEY_S1_CLOSE
-        elif cmd == IR_REMOTE_F:
-            key = KEY_S1_OPEN
-        elif cmd == IR_REMOTE_UP:
-            key = KEY_UP
-        elif cmd == IR_REMOTE_DOWN:
-            key = KEY_DOWN
-        elif cmd == IR_REMOTE_LEFT:
-            key = KEY_LEFT
-        elif cmd == IR_REMOTE_RIGHT:
-            key = KEY_RIGHT
-        elif cmd == IR_REMOTE_1:
-            current_speed = 20
-        elif cmd == IR_REMOTE_2:
-            current_speed = 25
-        elif cmd == IR_REMOTE_3:
-            current_speed = 30
-        elif cmd == IR_REMOTE_4:
-            current_speed = 40
-        elif cmd == IR_REMOTE_5:
-            current_speed = 50
-        elif cmd == IR_REMOTE_6:
-            current_speed = 60
-        elif cmd == IR_REMOTE_7:
-            current_speed = 70
-        elif cmd == IR_REMOTE_8:
-            current_speed = 80
-        elif cmd == IR_REMOTE_9:
-            current_speed = 100
-
-        if mode_changed:
-            print('mode changed by IR remote')
-
-    ir_rx.on_received(ir_callback)
-
-    def on_ble_connected_callback():
-        global ble_connected
-        ble_connected = True
-
-    ble.on_connected(on_ble_connected_callback)
-
-    def on_ble_disconnected_callback():
-        global ble_connected, current_speed
-        ble_connected = False
-        current_speed = 80
-
-    ble.on_disconnected(on_ble_disconnected_callback)
+  # boot animation
+  np = NeoPixel(Pin(4), 25)
 
 
-    def on_ble_message_name_value_receive_callback(name, value):
-        global current_speed, key, ble_key_received
+  def screen_show(image):
+    global np
+    it = iter(image)
+    for r in range(25):
+        col = next(it)
+        np[r] = (55, 0, 0) if col else (0, 0, 0)
+    np.write()
 
-        if name == 'F':
-            robot.forward(value)
-        elif name == 'B':
-            robot.backward(value)
-        elif name == 'L':
-            robot.turn_left(value/1.5)
-        elif name == 'R':
-            robot.turn_right(value/1.5)
-        if name == 'FL':
-            robot.move(4, value/1.5)
-        elif name == 'BL':
-            robot.move(6, value/1.5)
-        elif name == 'FR':
-            robot.move(2, value/1.5)
-        elif name == 'BR':
-            robot.move(8, value/1.5)
-        elif name == 'S':
-            current_speed = 80
-            robot.stop()
-        elif name in ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8']:
-            index = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'].index(name)
-            servo.position(index, value)
+  full = [0] * 25
+  np.fill((0,0,0))
+  np.write()
+  time.sleep_ms(150)
 
-    ble.on_receive_msg("name_value", on_ble_message_name_value_receive_callback)
+  d = 5
+  d2 = 2
+  x = 2
+  y = 2
+  for i in range((d2 + 1) * 2 - d, d + 1, 2):
+      xx = x - (i-1)
+      yy = y - (i-1)
+      x1 = x
+      y1 = y
+      xx1 = xx
+      yy1 = yy
 
-    try:
-        while True :
-            if mode_changed:
-                if mode == ROBOT_MODE_DO_NOTHING:
-                    led_onboard.show(0, LED_COLOR_DO_NOTHING)
-                    key = KEY_NONE
-                elif mode == ROBOT_MODE_AVOID_OBS:
-                    led_onboard.show(0, LED_COLOR_AVOID_OBS)
-                elif mode == ROBOT_MODE_FOLLOW:
-                    led_onboard.show(0, LED_COLOR_FOLLOW)
-                elif mode == ROBOT_MODE_LINE_FINDER:
-                    led_onboard.show(0, LED_COLOR_LINE_FINDER)
-                mode_changed = False
-
-            if mode == ROBOT_MODE_DO_NOTHING:
-                if not ble_connected:
-                    if key != KEY_NONE:
-                        if key == KEY_UP:
-                            robot.forward(current_speed)
-                        elif key == KEY_DOWN:
-                            robot.backward(current_speed)
-                        elif key == KEY_LEFT:
-                            robot.turn_left(current_speed/1.5)
-                        elif key == KEY_RIGHT:
-                            robot.turn_right(current_speed/1.5)
-                        elif key == KEY_S1_CLOSE:
-                            servo.rotate(0, -1, 5, servo.position(0)-5)
-                        elif key == KEY_S1_OPEN:
-                            servo.rotate(0, 1, 5, servo.position(0)+5)
-
-                        key = KEY_NONE
-                    else:
-                        robot.stop()
-
-                    time.sleep_ms(100)
-
-            elif mode == ROBOT_MODE_AVOID_OBS:
-                robot.run_mode_obs(False)
-
-            elif mode == ROBOT_MODE_FOLLOW:
-                robot.run_mode_follow(False)
-
-            elif mode == ROBOT_MODE_LINE_FINDER:
-                robot.run_mode_linefinder(False)
-                
-    except KeyboardInterrupt:
-        print('Default mode stopped by app')
-    finally:
-        robot.stop()
-        btn_onboard.on_pressed = None
-        ir_rx.on_received(None)
-        ir_rx.stop()
-        ble.on_receive_msg("name_value", None)
-        ble.on_connected(None)
-        ble.on_disconnected(None)
-        del mode, mode_changed, current_speed, ble_connected, key, on_ble_message_name_value_receive_callback, on_ble_connected_callback, on_ble_disconnected_callback, button_callback
-        gc.collect()
+      for j in range(i):
+          y1 = y - j
+          yy1 = yy + j
+          full[x1 * 5 + y1] = 1
+          full[xx1 * 5 + yy1] = 1
+          screen_show(full)
+          time.sleep_ms(150)
+      for j in range(1, i-1, 1):                
+          x1 = x - j
+          xx1 = xx + j
+          full[x1 * 5 + y1] = 1
+          full[xx1 * 5 + yy1] = 1
+          screen_show(full)
+          time.sleep_ms(150)
+      x += 1
+      y += 1
+  
+  np.fill((0,0,0))
+  np.write()
+  del np, x, y, d, d2, screen_show, full
 """
         )
     return vfs
