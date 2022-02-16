@@ -42,6 +42,7 @@ COLOR = {
     'b': 2 ,
     'd': 3 ,
     'w': 4 ,
+    'y': 5
 }
 
 class TCS34725:
@@ -247,6 +248,9 @@ class ColorSensor:
         elif min(r, g, b) > (limit/3):
             #white
             return 4 == COLOR[color]
+        elif ((26 < r < 36) and (14 < g < 24) and (0 < b < 8)):
+            #yellow
+            return 5 == COLOR[color]
         else:
             #other colors
             return False

@@ -1,16 +1,22 @@
 import machine
 import binascii
 from micropython import const
-import ujson
+import ujson, gc
 
 CHIP_ID = binascii.hexlify(machine.unique_id()).decode('ascii')
 PREFIX_NAME = 'ohstem-'
 PRODUCT_TYPE = 'xbot'
 PRODUCT_NAME = PREFIX_NAME + PRODUCT_TYPE + '-' + CHIP_ID[-4:]
-VERSION = '1.2'
+VERSION = '1.3'
 
-PORTS_DIGITAL = [(18, 19), (4, 5), (13, 14), (16, 17), (32, 33), (25, 26)]
-PORTS_ADC = [(-1, -1), (-1, -1), (-1, -1), (39, 36), (32, 33), (34, 35)]
+if gc.mem_free() > 1000000:
+    DEV_VERSION = 1.1 # xBot version 1.1 and newer has 4MB RAM with different grove pinouts
+    PORTS_DIGITAL = [(18, 19), (4, 5), (13, 14), (22, 21), (32, 33), (25, 26)]
+    PORTS_ADC = [(39, None), (36, None), (35, None), (None, None), (32, 33), (34, None)]
+else:
+    DEV_VERSION = 1
+    PORTS_DIGITAL = [(18, 19), (4, 5), (13, 14), (16, 17), (32, 33), (25, 26)]
+    PORTS_ADC = [(None, None), (None, None), (None, None), (39, 36), (32, 33), (34, 35)]
 
 # timeout for programming mode
 PROGRAMMING_MODE_TIMEOUT = const(90000)

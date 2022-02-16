@@ -300,6 +300,36 @@ class BLE:
             return False
 
         return True
+    
+    # connect to any nearby ble device
+    # used for central mode, exposed to user
+    def connect_nearby(self):
+        not_found = False
+
+        def on_scan(addr_type, addr, name):
+            #print(addr_type, addr, name)
+            if addr_type is not None:
+                self._ble_uart.connect()
+            else:
+                nonlocal not_found
+                not_found = True
+                print("No peripheral found.")
+
+        self._ble_uart.scan(name='', callback=on_scan)
+
+        # Wait for scan completed and connection established
+        timeout = 150
+        while not self._ble_uart.is_connected() and timeout > 0:
+            time.sleep_ms(100)
+            if not_found:
+                return False
+            timeout -= 1
+
+        if timeout == 0:
+            print("Failed to scan and connect to periph device")
+            return False
+
+        return True
 
     def is_connected(self):
         return self._ble_uart.is_connected()

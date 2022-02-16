@@ -94,6 +94,7 @@ class BLEUART:
         self._name_to_scan = None
         self._addr_type = None
         self._addr = None
+        self._rssi = None
 
         # Callbacks for completion of various operations.
         # These reset back to None after being invoked.
@@ -160,17 +161,22 @@ class BLEUART:
 
         elif event == _IRQ_SCAN_RESULT:
             addr_type, addr, adv_type, rssi, adv_data = data
-            #print('Scan result: ', addr_type, addr, adv_type, rssi, adv_data)
+            print('Scan result: ', addr_type, addr, adv_type, rssi, adv_data)
             if adv_type in (_ADV_IND, _ADV_DIRECT_IND):
                 _name_scanned = decode_name(adv_data) or "?"
-                #print('Found device: ', _name_scanned)
+                print('Found device: ', _name_scanned)
                 if _name_scanned == self._name_to_scan:
-                    #print('selected device: ', _name_scanned)
+                    print('Device found has name matched. Stop scanning and connect')
                     # Found a potential device, remember it and stop scanning.
                     self._addr_type = addr_type
                     self._addr = bytes(addr)  # Note: addr buffer is owned by caller so need to copy it.
                     self._ble.gap_scan(None)
-                    print('Now stop scanning')
+                elif self._name_to_scan == None or self._name_to_scan == '': # scanning for nearby device case
+                    # save for later
+                    if self._rssi == None or self._rssi < rssi: # found nearer device
+                        self._addr_type = addr_type
+                        self._addr = bytes(addr)  # Note: addr buffer is owned by caller so need to copy it.
+                        self._rssi = rssi
 
         elif event == _IRQ_SCAN_DONE:
             if self._scan_callback:
@@ -271,7 +277,12 @@ class BLEUART:
         if not self._central_connected or self._conn_central_handle == None or self._rx_central_handle == None:
             # not connected yet
             return
-        self._ble.gattc_write(self._conn_central_handle, self._rx_central_handle, v, 1 if response else 0)
+
+        try:
+            self._ble.gattc_write(self._conn_central_handle, self._rx_central_handle, v, 1 if response else 0)
+        except:
+            # something wrong when sending ble data which cannot be handled
+            pass
 
     def disconnect_periph(self): # Disconnect, used for peripheral mode
         for conn_handle in self._connections:
@@ -281,7 +292,11 @@ class BLEUART:
     def disconnect_central(self): # Disconnect, used for central mode
         if self._conn_central_handle is None:
             return
-        self._ble.gap_disconnect(self._conn_central_handle)
+        try:
+            self._ble.gap_disconnect(self._conn_central_handle)
+        except:
+            # something wrong which cannot be handled
+            pass
 
     # Returns true if we've successfully connected and discovered characteristics.
     def is_connected(self):

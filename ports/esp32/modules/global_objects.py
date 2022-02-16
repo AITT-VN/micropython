@@ -6,7 +6,7 @@ from utility import *
 
 # hardware libs
 from pins import *
-from led import led_onboard
+from led import *
 from speaker import speaker, BIRTHDAY, TWINKLE, JINGLE_BELLS, WHEELS_ON_BUS, FUR_ELISE, CHASE, JUMP_UP, JUMP_DOWN, POWER_UP, POWER_DOWN
 from ultrasonic import ultrasonic
 from line_array import line_array
