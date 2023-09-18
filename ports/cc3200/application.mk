@@ -78,10 +78,9 @@ APP_MISC_SRC_C = $(addprefix misc/,\
 APP_MODS_SRC_C = $(addprefix mods/,\
 	modmachine.c \
 	modnetwork.c \
-	moduos.c \
-	modusocket.c \
-	modussl.c \
-	modutime.c \
+	modos.c \
+	modsocket.c \
+	modssl.c \
 	modwipy.c \
 	modwlan.c \
 	pybadc.c \
@@ -162,11 +161,11 @@ APP_STM_SRC_C = $(addprefix ports/stm32/,\
 OBJ = $(PY_O) $(addprefix $(BUILD)/, $(APP_FATFS_SRC_C:.c=.o) $(APP_RTOS_SRC_C:.c=.o) $(APP_FTP_SRC_C:.c=.o) $(APP_HAL_SRC_C:.c=.o) $(APP_MISC_SRC_C:.c=.o))
 OBJ += $(addprefix $(BUILD)/, $(APP_MODS_SRC_C:.c=.o) $(APP_CC3100_SRC_C:.c=.o) $(APP_SL_SRC_C:.c=.o) $(APP_TELNET_SRC_C:.c=.o) $(APP_UTIL_SRC_C:.c=.o) $(APP_UTIL_SRC_S:.s=.o))
 OBJ += $(addprefix $(BUILD)/, $(APP_MAIN_SRC_C:.c=.o) $(APP_SHARED_SRC_C:.c=.o) $(APP_LIB_SRC_C:.c=.o) $(APP_STM_SRC_C:.c=.o))
-OBJ += $(BUILD)/shared/runtime/gchelper_m3.o
+OBJ += $(BUILD)/shared/runtime/gchelper_thumb2.o
 OBJ += $(BUILD)/pins.o
 
 # List of sources for qstr extraction
-SRC_QSTR += $(APP_MODS_SRC_C) $(APP_MISC_SRC_C) $(APP_STM_SRC_C) $(APP_SHARED_SRC_C)
+SRC_QSTR += $(APP_MODS_SRC_C) $(APP_MISC_SRC_C) $(APP_STM_SRC_C) $(APP_SHARED_SRC_C) $(APP_HAL_SRC_C)
 # Append any auto-generated sources that are needed by sources listed in
 # SRC_QSTR
 SRC_QSTR_AUTO_DEPS +=
@@ -199,7 +198,7 @@ WIPY_IP ?= '192.168.1.1'
 WIPY_USER ?= 'micro'
 WIPY_PWD ?= 'python'
 
-all: $(BUILD)/mcuimg.bin
+all: $(BUILD)/firmware.zip
 
 .PHONY: deploy-ota
 
@@ -219,6 +218,10 @@ $(BUILD)/application.bin: $(BUILD)/application.axf
 $(BUILD)/mcuimg.bin: $(BUILD)/application.bin
 	$(ECHO) "Create $@"
 	$(Q)$(SHELL) $(APP_SIGN) $(BUILD)
+
+$(BUILD)/firmware.zip: $(BUILD)/mcuimg.bin
+	$(ECHO) "Create $@"
+	$(Q)$(ZIP) -j $@ $<
 
 MAKE_PINS = boards/make-pins.py
 BOARD_PINS = boards/$(BOARD)/pins.csv

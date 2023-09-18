@@ -43,27 +43,43 @@ PATHS = [
     "shared/netutils/*.[ch]",
     "shared/timeutils/*.[ch]",
     "shared/runtime/*.[ch]",
+    "shared/tinyusb/*.[ch]",
     "mpy-cross/*.[ch]",
-    "ports/*/*.[ch]",
-    "ports/windows/msvc/**/*.[ch]",
-    "ports/nrf/modules/nrf/*.[ch]",
+    "ports/**/*.[ch]",
     "py/*.[ch]",
     # Python
     "drivers/**/*.py",
     "examples/**/*.py",
     "extmod/**/*.py",
     "ports/**/*.py",
-    "ports/mimxrt/**/*.[ch]",
     "py/**/*.py",
     "tools/**/*.py",
     "tests/**/*.py",
 ]
 
 EXCLUSIONS = [
+    # The cc3200 port is not fully formatted yet.
+    "ports/cc3200/*/*.[ch]",
+    # ESP-IDF downloads 3rd party code.
+    "ports/esp32/managed_components/*",
+    # The nrf port is not fully formatted yet.
+    "ports/nrf/boards/*.[ch]",
+    "ports/nrf/device/*.[ch]",
+    "ports/nrf/drivers/*.[ch]",
+    "ports/nrf/modules/ble/*.[ch]",
+    "ports/nrf/modules/board/*.[ch]",
+    "ports/nrf/modules/machine/*.[ch]",
+    "ports/nrf/modules/music/*.[ch]",
+    "ports/nrf/modules/ubluepy/*.[ch]",
+    "ports/nrf/modules/os/*.[ch]",
+    "ports/nrf/modules/time/*.[ch]",
+    # STM32 USB dev/host code is mostly 3rd party.
+    "ports/stm32/usbdev/**/*.[ch]",
+    "ports/stm32/usbhost/**/*.[ch]",
+    # Teensy core code is 3rd party.
+    "ports/teensy/core/*.[ch]",
     # STM32 build includes generated Python code.
     "ports/*/build*",
-    # gitignore in ports/unix ignores *.py, so also do it here.
-    "ports/unix/*.py",
     # not real python files
     "tests/**/repl_*.py",
     # needs careful attention before applying automatic formatting
@@ -74,6 +90,7 @@ EXCLUSIONS = [
 TOP = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 UNCRUSTIFY_CFG = os.path.join(TOP, "tools/uncrustify.cfg")
+PYPROJECT_TOML = os.path.join(TOP, "pyproject.toml")
 
 C_EXTS = (
     ".c",
@@ -138,6 +155,11 @@ def main():
     cmd_parser.add_argument("-c", action="store_true", help="Format C code only")
     cmd_parser.add_argument("-p", action="store_true", help="Format Python code only")
     cmd_parser.add_argument("-v", action="store_true", help="Enable verbose output")
+    cmd_parser.add_argument(
+        "-f",
+        action="store_true",
+        help="Filter files provided on the command line against the default list of files to check.",
+    )
     cmd_parser.add_argument("files", nargs="*", help="Run on specific globs")
     args = cmd_parser.parse_args()
 
@@ -149,6 +171,16 @@ def main():
     files = []
     if args.files:
         files = list_files(args.files)
+        if args.f:
+            # Filter against the default list of files. This is a little fiddly
+            # because we need to apply both the inclusion globs given in PATHS
+            # as well as the EXCLUSIONS, and use absolute paths
+            files = set(os.path.abspath(f) for f in files)
+            all_files = set(list_files(PATHS, EXCLUSIONS, TOP))
+            if args.v:  # In verbose mode, log any files we're skipping
+                for f in files - all_files:
+                    print("Not checking: {}".format(f))
+            files = list(files & all_files)
     else:
         files = list_files(PATHS, EXCLUSIONS, TOP)
 
@@ -177,7 +209,7 @@ def main():
 
     # Format Python files with black.
     if format_py:
-        command = ["black", "--fast", "--line-length=99"]
+        command = ["black", "--fast", "--config={}".format(PYPROJECT_TOML)]
         if args.v:
             command.append("-v")
         else:

@@ -104,6 +104,8 @@ mp_obj_t mp_native_to_obj(mp_uint_t val, mp_uint_t type) {
             return mp_obj_new_int(val);
         case MP_NATIVE_TYPE_UINT:
             return mp_obj_new_int_from_uint(val);
+        case MP_NATIVE_TYPE_QSTR:
+            return MP_OBJ_NEW_QSTR(val);
         default: // a pointer
             // we return just the value of the pointer as an integer
             return mp_obj_new_int_from_uint(val);
@@ -300,9 +302,9 @@ const mp_fun_table_t mp_fun_table = {
     mp_unpack_ex,
     mp_delete_name,
     mp_delete_global,
-    mp_make_closure_from_raw_code,
+    mp_obj_new_closure,
     mp_arg_check_num_sig,
-    mp_setup_code_state,
+    mp_setup_code_state_native,
     mp_small_int_floor_divide,
     mp_small_int_modulo,
     mp_native_yield_from,
@@ -343,5 +345,9 @@ const mp_fun_table_t mp_fun_table = {
     &mp_stream_unbuffered_readline_obj,
     &mp_stream_write_obj,
 };
+
+#elif MICROPY_EMIT_NATIVE && MICROPY_DYNAMIC_COMPILER
+
+const int mp_fun_table;
 
 #endif // MICROPY_EMIT_NATIVE
